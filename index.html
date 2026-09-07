@@ -375,6 +375,7 @@ nav.bottom{
         <div class="field"><label>Confirmar</label><input type="password" id="sc-pass2" placeholder="Repite la contraseña" value="1234"></div>
       </div>
       <button class="btn btn-accent btn-block" id="sc-start">Crear cuenta Creador →</button>
+      <div class="hint" style="text-align:center;"><a href="#" id="sc-back-login" style="color:var(--text-muted);">← Volver al inicio de sesión</a></div>
       <div class="brand-credit">Desarrollado por <b>MT Performance Solutions</b><br>Soluciones inteligentes. Desempeño superior.</div>
     </div>
   </div>
@@ -392,6 +393,7 @@ nav.bottom{
       <div class="field"><label>Contraseña</label><input type="password" id="login-pass"></div>
       <div id="login-error" style="color:var(--danger);font-size:12.5px;margin-bottom:12px;min-height:16px;"></div>
       <button class="btn btn-accent btn-block" id="login-btn">Entrar →</button>
+      <div id="login-setup-link"></div>
       <div class="brand-credit">Desarrollado por <b>MT Performance Solutions</b></div>
     </div>
   </div>
@@ -496,9 +498,39 @@ nav.bottom{
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
+/* ============ SUPABASE CONFIG ============ */
+const SUPABASE_URL = 'https://lfzbqurrwdwboobeiifr.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmemJxdXJyd2R3Ym9vYmVpaWZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNzI5ODgsImV4cCI6MjEwMzg0ODk4OH0.Tw6qItolg8dLdh8FznK3Pz6klV3j05AIWsi_jYyNX4E';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function makeEmail(handleOrEmail){
+  const v = (handleOrEmail||'').trim().toLowerCase();
+  if(!v) return v;
+  return v.includes('@') ? v : v.replace(/[^a-z0-9.]/g,'') + '@gemba.app';
+}
+/* Crea una cuenta de acceso (administrador o usuario) sin perder la sesión de quien la crea */
+async function crearCuenta({nombre, handleOrEmail, rol, empresaId, tempPass}){
+  const email = makeEmail(handleOrEmail);
+  if(!email) throw new Error('Escribe un usuario válido');
+  const tmp = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{persistSession:false, autoRefreshToken:false}});
+  const {data, error} = await tmp.auth.signUp({email, password: tempPass});
+  if(error){
+    if(/registered|exists/i.test(error.message)) throw new Error('Ese usuario ya existe, prueba con otro nombre.');
+    throw new Error(error.message);
+  }
+  if(!data.user) throw new Error('No se pudo crear la cuenta. Intenta de nuevo.');
+  const handle = handleOrEmail.includes('@') ? null : handleOrEmail.trim().toLowerCase();
+  const {error: perr} = await sb.from('perfiles').insert({
+    id: data.user.id, nombre, rol, empresa_id: empresaId||null,
+    usuario_handle: handle, debe_cambiar_clave: true, activo: true
+  });
+  if(perr) throw perr;
+  return {id: data.user.id, email};
+}
+
 /* ============ UTIL ============ */
-const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;const v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}));
 const todayISO = () => new Date().toISOString().slice(0,10);
 const fmtDate = (iso) => { const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 function toast(msg){
@@ -524,121 +556,199 @@ function estadoMembresia(empresa){
 function stateLabel(v){ return {cumple:'Cumple', parcial:'Parcial', no_cumple:'No cumple'}[v] || v; }
 function stateBadgeClass(v){ return {cumple:'badge-success', parcial:'badge-warning', no_cumple:'badge-danger'}[v] || 'badge-muted'; }
 
-/* ============ STORAGE LAYER (localStorage — works standalone, no Claude needed) ============ */
-const LS_PREFIX = 'gemba:';
-function lsGet(key){
-  try{ const v = localStorage.getItem(LS_PREFIX+key); return v===null ? null : JSON.parse(v); }
-  catch(e){ return null; }
-}
-function lsSet(key, value){
-  localStorage.setItem(LS_PREFIX+key, JSON.stringify(value));
-}
-function lsDelete(key){
-  try{ localStorage.removeItem(LS_PREFIX+key); }catch(e){}
-}
+/* ============ STORAGE LAYER (Supabase — datos reales en la nube) ============ */
 let currentEmpresaId = null; // set on login; scopes catalog/index/recorridos/templates
-const Store = {
-  /* -- global, not scoped to an empresa -- */
-  async getUsuarios(){ return lsGet('usuarios') || []; },
-  async saveUsuarios(list){ lsSet('usuarios', list); },
-  async getEmpresas(){ return lsGet('empresas') || []; },
-  async saveEmpresas(list){ lsSet('empresas', list); },
-  async getSesion(){ return lsGet('sesion'); },
-  async saveSesion(s){ lsSet('sesion', s); },
-  async clearSesion(){ lsDelete('sesion'); },
-
-  /* -- scoped to currentEmpresaId -- */
-  async getCatalog(){ return lsGet('catalog:'+currentEmpresaId) || {areas:[]}; },
-  async saveCatalog(c){ lsSet('catalog:'+currentEmpresaId, c); },
-
-  async getIndex(){ return lsGet('index:'+currentEmpresaId) || []; },
-  async saveIndex(idx){ lsSet('index:'+currentEmpresaId, idx); },
-
-  async getRecorrido(id){ return lsGet('recorrido:'+currentEmpresaId+':'+id); },
-  async saveRecorrido(rec){ lsSet('recorrido:'+currentEmpresaId+':'+rec.id, rec); },
-  async deleteRecorrido(id){ lsDelete('recorrido:'+currentEmpresaId+':'+id); },
-
-  async getTemplates(){ return normalizeTemplates(lsGet('checklist-templates:'+currentEmpresaId) || {}); },
-  async saveTemplates(t){ lsSet('checklist-templates:'+currentEmpresaId, t); }
-};
 function normalizeTemplates(t){
   return {
     seguridad: t.seguridad||[], calidad: t.calidad||[], centerline: t.centerline||[],
     orden_aseo: t.orden_aseo||[], lila: t.lila||[], tpm: t.tpm||[]
   };
 }
-
-/* ============ PASSWORD HASHING (local device only — see note to user) ============ */
-function genSalt(){ return uid()+uid(); }
-async function hashPassword(password, salt){
-  const raw = salt+':'+password;
-  try{
-    if(window.crypto && window.crypto.subtle){
-      const enc = new TextEncoder().encode(raw);
-      const buf = await window.crypto.subtle.digest('SHA-256', enc);
-      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-    }
-  }catch(e){}
-  let h=0;
-  for(let i=0;i<raw.length;i++){ h = (Math.imul(31,h)+raw.charCodeAt(i))|0; }
-  return 'fb'+Math.abs(h).toString(16);
+async function uploadFotoDataUrl(dataUrl, nombre){
+  const blob = await (await fetch(dataUrl)).blob();
+  const path = `${currentEmpresaId}/${Date.now()}-${uid()}-${slugify(nombre)}.jpg`;
+  const {error} = await sb.storage.from('fotos-gemba').upload(path, blob, {contentType:'image/jpeg', upsert:true});
+  if(error) throw error;
+  const {data} = sb.storage.from('fotos-gemba').getPublicUrl(path);
+  return data.publicUrl;
 }
+async function uploadPendingPhotos(rec){
+  const grupos = [...CATLABEL_KEYS.map(k=>rec[k]||[]), rec.observaciones||[]];
+  for(const arr of grupos){
+    for(const it of arr){
+      if(it.foto && it.foto.data && it.foto.data.startsWith('data:')){
+        it.foto.data = await uploadFotoDataUrl(it.foto.data, it.foto.nombre||'foto');
+      }
+    }
+  }
+}
+const Store = {
+  async getCatalog(){
+    const {data:areas} = await sb.from('areas').select('*').eq('empresa_id', currentEmpresaId).order('nombre');
+    const areaIds = (areas||[]).map(a=>a.id);
+    const {data:maquinas} = areaIds.length ? await sb.from('maquinas').select('*').in('area_id', areaIds).order('nombre') : {data:[]};
+    const maqIds = (maquinas||[]).map(m=>m.id);
+    const {data:zonas} = maqIds.length ? await sb.from('zonas').select('*').in('maquina_id', maqIds).order('nombre') : {data:[]};
+    return {areas: (areas||[]).map(a=>({
+      id:a.id, nombre:a.nombre,
+      maquinas: (maquinas||[]).filter(m=>m.area_id===a.id).map(m=>({
+        id:m.id, nombre:m.nombre, procesoProductivo:m.proceso_productivo||'',
+        zonas: (zonas||[]).filter(z=>z.maquina_id===m.id).map(z=>({id:z.id, nombre:z.nombre}))
+      }))
+    }))};
+  },
+  async saveCatalog(c){
+    const areaRows = c.areas.map(a=>({id:a.id, empresa_id: currentEmpresaId, nombre:a.nombre}));
+    if(areaRows.length) await sb.from('areas').upsert(areaRows);
+    const maqRows = [];
+    c.areas.forEach(a=> a.maquinas.forEach(m=> maqRows.push({id:m.id, area_id:a.id, nombre:m.nombre, proceso_productivo:m.procesoProductivo||null})));
+    if(maqRows.length) await sb.from('maquinas').upsert(maqRows);
+    const zonaRows = [];
+    c.areas.forEach(a=> a.maquinas.forEach(m=> (m.zonas||[]).forEach(z=> zonaRows.push({id:z.id, maquina_id:m.id, nombre:z.nombre}))));
+    if(zonaRows.length) await sb.from('zonas').upsert(zonaRows);
+  },
+
+  async getIndex(){
+    const {data, error} = await sb.from('recorridos').select('*').eq('empresa_id', currentEmpresaId);
+    if(error || !data) return [];
+    return data.map(r=>({
+      id:r.id, fecha:r.fecha, responsable:r.responsable_nombre,
+      areaId:r.area_id, areaNombre:r.area_nombre, maquinaId:r.maquina_id, maquinaNombre:r.maquina_nombre,
+      procesoProductivo:r.proceso_productivo||'', zonaId:r.zona_id, zonaNombre:r.zona_nombre,
+      scores: r.scores || {general:null}, opAltas: r.op_altas||0, creadoEn: new Date(r.creado_en).getTime()
+    }));
+  },
+  async saveIndex(){ /* la tabla recorridos ya es la fuente de verdad; nada que hacer aquí */ },
+
+  async getRecorrido(id){
+    const {data:recRow, error} = await sb.from('recorridos').select('*').eq('id', id).single();
+    if(error || !recRow) return null;
+    const {data:itemRows} = await sb.from('recorrido_items').select('*').eq('recorrido_id', id);
+    const {data:obsRows} = await sb.from('observaciones').select('*').eq('recorrido_id', id);
+    const rec = {
+      id:recRow.id, fecha:recRow.fecha, responsable:recRow.responsable_nombre,
+      areaId:recRow.area_id, areaNombre:recRow.area_nombre,
+      maquinaId:recRow.maquina_id, maquinaNombre:recRow.maquina_nombre,
+      procesoProductivo:recRow.proceso_productivo||'',
+      zonaId:recRow.zona_id, zonaNombre:recRow.zona_nombre,
+      scores: recRow.scores || {}, notasCierre: recRow.notas_cierre || '',
+      creadoEn: new Date(recRow.creado_en).getTime(),
+      seguridad:[], calidad:[], centerline:[], orden_aseo:[], lila:[], tpm:[], observaciones:[]
+    };
+    (itemRows||[]).forEach(r=>{
+      if(!rec[r.categoria]) return;
+      rec[r.categoria].push({id:r.id, nombre:r.nombre, valorEsperado:r.valor_esperado||'', estado:r.estado||'', observacion:r.observacion||'', foto: r.foto_url?{data:r.foto_url, nombre:r.foto_nombre||''}:null});
+    });
+    (obsRows||[]).forEach(r=>{
+      rec.observaciones.push({id:r.id, tipo:r.tipo, categoria:r.categoria||'', severidad:r.severidad||'', descripcion:r.descripcion||'', foto: r.foto_url?{data:r.foto_url, nombre:r.foto_nombre||''}:null});
+    });
+    return rec;
+  },
+  async saveRecorrido(rec){
+    await uploadPendingPhotos(rec);
+    const row = {
+      id: rec.id, empresa_id: currentEmpresaId,
+      area_id: rec.areaId||null, area_nombre: rec.areaNombre||null,
+      maquina_id: rec.maquinaId||null, maquina_nombre: rec.maquinaNombre||null,
+      proceso_productivo: rec.procesoProductivo||null,
+      zona_id: rec.zonaId||null, zona_nombre: rec.zonaNombre||null,
+      fecha: rec.fecha, responsable_id: currentUsuario?currentUsuario.id:null, responsable_nombre: rec.responsable||null,
+      scores: rec.scores||{}, op_altas: (rec.observaciones||[]).filter(o=>o.tipo==='oportunidad'&&o.severidad==='alta').length,
+      notas_cierre: rec.notasCierre||null
+    };
+    const {error} = await sb.from('recorridos').upsert(row);
+    if(error) throw error;
+    await sb.from('recorrido_items').delete().eq('recorrido_id', rec.id);
+    await sb.from('observaciones').delete().eq('recorrido_id', rec.id);
+    const itemRows = [];
+    CATLABEL_KEYS.forEach(key=>{
+      (rec[key]||[]).forEach(it=>{
+        itemRows.push({id:it.id, recorrido_id:rec.id, categoria:key, nombre:it.nombre, valor_esperado:it.valorEsperado||null, estado:it.estado||null, observacion:it.observacion||null, foto_url: it.foto?it.foto.data:null, foto_nombre: it.foto?it.foto.nombre:null});
+      });
+    });
+    if(itemRows.length){ const {error:e2} = await sb.from('recorrido_items').insert(itemRows); if(e2) throw e2; }
+    const obsRows = (rec.observaciones||[]).map(o=>({id:o.id, recorrido_id:rec.id, tipo:o.tipo, categoria:o.categoria||null, severidad:o.severidad||null, descripcion:o.descripcion||null, foto_url:o.foto?o.foto.data:null, foto_nombre:o.foto?o.foto.nombre:null}));
+    if(obsRows.length){ const {error:e3} = await sb.from('observaciones').insert(obsRows); if(e3) throw e3; }
+  },
+  async deleteRecorrido(id){ await sb.from('recorridos').delete().eq('id', id); },
+
+  async getTemplates(){
+    const {data} = await sb.from('plantillas_items').select('*').eq('empresa_id', currentEmpresaId).order('nombre');
+    const t = {seguridad:[],calidad:[],centerline:[],orden_aseo:[],lila:[],tpm:[]};
+    (data||[]).forEach(r=>{ if(t[r.categoria]) t[r.categoria].push({id:r.id, nombre:r.nombre, valorEsperado:r.valor_esperado||''}); });
+    return t;
+  },
+  async saveTemplates(t){
+    const rows = [];
+    Object.keys(t).forEach(cat=> (t[cat]||[]).forEach(it=> rows.push({id: it.id||uid(), empresa_id: currentEmpresaId, categoria:cat, nombre:it.nombre, valor_esperado:it.valorEsperado||null})));
+    if(rows.length) await sb.from('plantillas_items').upsert(rows);
+  },
+
+  async getUsuariosDeEmpresa(empresaId){
+    const {data} = await sb.from('perfiles').select('*').eq('empresa_id', empresaId).eq('rol','usuario').order('nombre');
+    return (data||[]).map(u=>({id:u.id, nombre:u.nombre, usuario:u.usuario_handle||'', activo:u.activo, debeCambiarClave:u.debe_cambiar_clave}));
+  },
+  async getAdministradores(){
+    const {data} = await sb.from('perfiles').select('*, empresas(*)').eq('rol','administrador').order('nombre');
+    return (data||[]).map(a=>({id:a.id, nombre:a.nombre, usuario:a.usuario_handle||'', activo:a.activo, empresaId:a.empresa_id, empresa: a.empresas}));
+  },
+  async contarUsuariosDeEmpresa(empresaId){
+    const {count} = await sb.from('perfiles').select('id', {count:'exact', head:true}).eq('empresa_id', empresaId).eq('rol','usuario');
+    return count||0;
+  }
+};
 
 /* ============ APP STATE ============ */
 let catalog = {areas:[]};
 let indexList = [];
-let templates = {centerline:[],lila:[],tpm:[]};
+let templates = {seguridad:[],calidad:[],centerline:[],orden_aseo:[],lila:[],tpm:[]};
 
 let wizard = null; // current recorrido draft
 let wizardStep = 0;
 let inlineCreate = {area:false, maquina:false, zona:false};
 let bulkOpen = {};
-let usuarios = [];
-let empresas = [];
-let currentUsuario = null; // {id,nombre,usuario,rol,empresaId,activo}
-let currentEmpresa = null; // {id,nombre,logo}
+let currentUsuario = null; // {id,nombre,rol,empresaId,activo,debeCambiarClave}
+let currentEmpresa = null; // {id,nombre,logo,limiteUsuarios,fechaVencimiento}
 let currentTab = 'view-home';
 const STEPS = ['Config','Seguridad','Calidad','Centerline','5S y LILA','TPM','Observaciones','Cierre'];
 
-/* ============ INIT ============ */
+/* ============ INIT / AUTH ============ */
 async function init(){
-  usuarios = await Store.getUsuarios();
-  empresas = await Store.getEmpresas();
-  if(usuarios.length===0){
-    showView('view-setup-creador');
-    return;
-  }
-  const sesion = await Store.getSesion();
-  const u = sesion ? usuarios.find(x=>x.id===sesion.usuarioId && x.activo) : null;
-  if(u){
-    await loginAs(u);
-  }else{
-    showView('view-login');
-  }
+  const {data:{session}} = await sb.auth.getSession();
+  if(session){ await afterLogin(); }
+  else{ showView('view-login'); }
 }
 init();
 
 let pendingUser = null;
-async function loginAs(u){
-  if(u.debeCambiarClave){
-    pendingUser = u;
-    document.getElementById('fp-hello').textContent = `Hola ${u.nombre}, tu clave fue asignada por ${u.rol==='administrador'?'el creador':'tu administrador'}. Crea una nueva antes de continuar.`;
+async function afterLogin(){
+  const {data:{user}} = await sb.auth.getUser();
+  if(!user){ showView('view-login'); return; }
+  const {data:perfil, error} = await sb.from('perfiles').select('*').eq('id', user.id).single();
+  if(error || !perfil || !perfil.activo){
+    await sb.auth.signOut();
+    document.getElementById('login-error').textContent = 'Cuenta no encontrada o inactiva.';
+    showView('view-login');
+    return;
+  }
+  currentUsuario = {id:perfil.id, nombre:perfil.nombre, rol:perfil.rol, empresaId:perfil.empresa_id, activo:perfil.activo, debeCambiarClave:perfil.debe_cambiar_clave};
+  if(currentUsuario.debeCambiarClave){
+    pendingUser = currentUsuario;
+    document.getElementById('fp-hello').textContent = `Hola ${currentUsuario.nombre}, tu clave fue asignada por ${currentUsuario.rol==='administrador'?'el creador':'tu administrador'}. Crea una nueva antes de continuar.`;
     showView('view-force-password');
     return;
   }
-  currentUsuario = u;
-  await Store.saveSesion({usuarioId:u.id});
-  if(u.rol==='creador'){
+  if(currentUsuario.rol==='creador'){
     currentEmpresa = null; currentEmpresaId = null;
-    renderCreadorPanel();
+    await renderCreadorPanel();
     showView('view-creador-panel');
     return;
   }
-  currentEmpresaId = u.empresaId;
-  currentEmpresa = empresas.find(e=>e.id===u.empresaId) || {id:u.empresaId, nombre:'Empresa', logo:null};
+  currentEmpresaId = currentUsuario.empresaId;
+  const {data:empresaRow} = await sb.from('empresas').select('*').eq('id', currentEmpresaId).single();
+  currentEmpresa = empresaRow ? {id:empresaRow.id, nombre:empresaRow.nombre, logo:empresaRow.logo_url, limiteUsuarios:empresaRow.limite_usuarios, fechaVencimiento:empresaRow.fecha_vencimiento} : {id:currentEmpresaId, nombre:'Empresa', logo:null};
   const mem = estadoMembresia(currentEmpresa);
   if(mem.estado==='vencida'){
-    await Store.saveSesion({usuarioId:u.id}); // keep session so logout works, but block access
     document.getElementById('mv-info').textContent = `La membresía de ${currentEmpresa.nombre} venció hace ${Math.abs(mem.dias)} día(s) (${fmtDate(currentEmpresa.fechaVencimiento)}). Contacta al creador para renovarla.`;
     showView('view-membresia-vencida');
     return;
@@ -654,23 +764,21 @@ async function loginAs(u){
 document.getElementById('fp-save').addEventListener('click', async ()=>{
   const p1 = document.getElementById('fp-pass1').value;
   const p2 = document.getElementById('fp-pass2').value;
-  if(!p1 || p1.length<4){ toast('La contraseña debe tener al menos 4 caracteres'); return; }
+  if(!p1 || p1.length<6){ toast('La contraseña debe tener al menos 6 caracteres'); return; }
   if(p1!==p2){ toast('Las contraseñas no coinciden'); return; }
-  const salt = genSalt();
-  pendingUser.salt = salt;
-  pendingUser.passHash = await hashPassword(p1, salt);
-  pendingUser.debeCambiarClave = false;
-  await Store.saveUsuarios(usuarios);
-  const u = pendingUser; pendingUser = null;
+  const {error} = await sb.auth.updateUser({password:p1});
+  if(error){ toast('No se pudo actualizar: '+error.message); return; }
+  await sb.from('perfiles').update({debe_cambiar_clave:false}).eq('id', pendingUser.id);
+  const u = pendingUser; pendingUser = null; u.debeCambiarClave = false;
   document.getElementById('fp-pass1').value=''; document.getElementById('fp-pass2').value='';
   toast('Contraseña actualizada');
-  await loginAs(u);
+  await afterLogin();
 });
 
-function logout(){
-  Store.clearSesion();
+async function logout(){
+  await sb.auth.signOut();
   currentUsuario = null; currentEmpresa = null; currentEmpresaId = null;
-  catalog = {areas:[]}; indexList = []; templates = {centerline:[],lila:[],tpm:[]};
+  catalog = {areas:[]}; indexList = []; templates = {seguridad:[],calidad:[],centerline:[],orden_aseo:[],lila:[],tpm:[]};
   showView('view-login');
 }
 
@@ -715,38 +823,25 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
   });
 });
 
-/* ---- first-run: crear cuenta Creador ---- */
-document.getElementById('sc-start').addEventListener('click', async ()=>{
-  const nombre = document.getElementById('sc-nombre').value.trim();
-  const login = document.getElementById('sc-usuario').value.trim().toLowerCase();
-  const pass = document.getElementById('sc-pass').value;
-  const pass2 = document.getElementById('sc-pass2').value;
-  if(!nombre || !login || !pass){ toast('Completa todos los campos'); return; }
-  if(pass!==pass2){ toast('Las contraseñas no coinciden'); return; }
-  if(pass.length<4){ toast('La contraseña debe tener al menos 4 caracteres'); return; }
-  const salt = genSalt();
-  const passHash = await hashPassword(pass, salt);
-  const nuevo = {id:uid(), nombre, usuario:login, rol:'creador', empresaId:null, salt, passHash, activo:true, creadoEn:Date.now()};
-  usuarios.push(nuevo);
-  await Store.saveUsuarios(usuarios);
-  toast('Cuenta de creador lista');
-  await loginAs(nuevo);
+/* ---- la cuenta Creador ahora se crea directamente en Supabase (Authentication → Users) ---- */
+document.getElementById('sc-back-login').addEventListener('click', (e)=>{
+  e.preventDefault();
+  showView('view-login');
 });
 
 /* ---- login ---- */
 document.getElementById('login-btn').addEventListener('click', doLogin);
 document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 async function doLogin(){
-  const login = document.getElementById('login-usuario').value.trim().toLowerCase();
+  const login = document.getElementById('login-usuario').value.trim();
   const pass = document.getElementById('login-pass').value;
   const errBox = document.getElementById('login-error');
   errBox.textContent = '';
-  const u = usuarios.find(x=>x.usuario===login);
-  if(!u || !u.activo){ errBox.textContent = 'Usuario no encontrado o inactivo.'; return; }
-  const hash = await hashPassword(pass, u.salt);
-  if(hash!==u.passHash){ errBox.textContent = 'Contraseña incorrecta.'; return; }
-  toast(`¡Bienvenido, ${u.nombre}!`);
-  await loginAs(u);
+  const email = makeEmail(login);
+  if(!email){ errBox.textContent = 'Escribe tu usuario o correo.'; return; }
+  const {error} = await sb.auth.signInWithPassword({email, password: pass});
+  if(error){ errBox.textContent = 'Usuario o contraseña incorrectos.'; return; }
+  await afterLogin();
 }
 document.querySelectorAll('.btn-logout').forEach(b=> b.addEventListener('click', logout));
 
@@ -1845,10 +1940,10 @@ async function renderInformes(){
 }
 
 /* ============ AJUSTES ============ */
-function renderAjustes(){
+async function renderAjustes(){
   const body = document.getElementById('ajustes-body');
   const isAdmin = currentUsuario.rol === 'administrador';
-  const misUsuarios = usuarios.filter(u=>u.empresaId===currentEmpresaId && u.rol==='usuario');
+  const misUsuarios = isAdmin ? await Store.getUsuariosDeEmpresa(currentEmpresaId) : [];
   const cupoUsuarios = currentEmpresa?.limiteUsuarios ?? '∞';
   const cupoAlcanzado = typeof cupoUsuarios==='number' && misUsuarios.length>=cupoUsuarios;
   const mem = estadoMembresia(currentEmpresa);
@@ -1888,7 +1983,7 @@ function renderAjustes(){
       ${misUsuarios.length?misUsuarios.map(u=>`
         <div class="data-row">
           <div class="dr-info"><div class="dr-name">${escapeHtml(u.nombre)}</div><div class="dr-sub">usuario: ${escapeHtml(u.usuario)} · ${u.activo?'activo':'inactivo'}${u.debeCambiarClave?' · clave pendiente por cambiar':''}</div></div>
-          <button class="btn btn-sm ${u.activo?'btn-ghost':'btn-accent'}" data-uid="${u.id}" data-action="toggle-usuario">${u.activo?'Desactivar':'Activar'}</button>
+          <button class="btn btn-sm ${u.activo?'btn-ghost':'btn-accent'}" data-uid="${u.id}" data-activo="${u.activo}" data-action="toggle-usuario">${u.activo?'Desactivar':'Activar'}</button>
         </div>
       `).join(''):'<div class="hint" style="margin-top:0;">Aún no has creado usuarios.</div>'}
       <div style="height:6px;"></div>
@@ -1896,7 +1991,7 @@ function renderAjustes(){
       <div class="field"><label>Nombre completo</label><input type="text" id="nu-nombre" placeholder="Ej. Carlos Pérez"></div>
       <div class="row2">
         <div class="field"><label>Usuario</label><input type="text" id="nu-usuario" placeholder="Ej. cperez"></div>
-        <div class="field"><label>Contraseña inicial</label><input type="password" id="nu-pass" placeholder="Mínimo 4 caracteres"></div>
+        <div class="field"><label>Contraseña inicial</label><input type="password" id="nu-pass" placeholder="Mínimo 6 caracteres"></div>
       </div>
       <button class="btn btn-accent btn-block" id="nu-create">+ Crear usuario</button>
       `}
@@ -1971,9 +2066,8 @@ TPM | Nivel de aceite dentro de rango"></textarea>
 
     document.querySelectorAll('[data-action="toggle-usuario"]').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
-        const u = usuarios.find(x=>x.id===btn.dataset.uid);
-        u.activo = !u.activo;
-        await Store.saveUsuarios(usuarios);
+        const nuevoEstado = btn.dataset.activo !== 'true';
+        await sb.from('perfiles').update({activo: nuevoEstado}).eq('id', btn.dataset.uid);
         renderAjustes();
       });
     });
@@ -1984,13 +2078,15 @@ TPM | Nivel de aceite dentro de rango"></textarea>
       const login = document.getElementById('nu-usuario').value.trim().toLowerCase();
       const pass = document.getElementById('nu-pass').value;
       if(!nombre||!login||!pass){ toast('Completa todos los campos'); return; }
-      if(pass.length<4){ toast('La contraseña debe tener al menos 4 caracteres'); return; }
-      if(usuarios.some(u=>u.usuario===login)){ toast('Ese usuario ya existe'); return; }
-      const salt = genSalt();
-      const passHash = await hashPassword(pass, salt);
-      usuarios.push({id:uid(), nombre, usuario:login, rol:'usuario', empresaId:currentEmpresaId, salt, passHash, debeCambiarClave:true, activo:true, creadoEn:Date.now()});
-      await Store.saveUsuarios(usuarios);
-      toast('Usuario creado');
+      if(pass.length<6){ toast('La contraseña debe tener al menos 6 caracteres'); return; }
+      nuCreateBtn.disabled = true; nuCreateBtn.textContent = 'Creando…';
+      try{
+        await crearCuenta({nombre, handleOrEmail:login, rol:'usuario', empresaId: currentEmpresaId, tempPass: pass});
+        toast(`Usuario creado — comparte con ${nombre.split(' ')[0]} su usuario "${login}" y la clave inicial`);
+      }catch(err){
+        toast(err.message || 'No se pudo crear el usuario');
+      }
+      nuCreateBtn.disabled = false; nuCreateBtn.textContent = '+ Crear usuario';
       renderAjustes();
     });
 
@@ -2064,12 +2160,10 @@ TPM | Nivel de aceite dentro de rango"></textarea>
   document.getElementById('aj-save-pass').addEventListener('click', async ()=>{
     const p1 = document.getElementById('aj-pass1').value;
     const p2 = document.getElementById('aj-pass2').value;
-    if(!p1 || p1.length<4){ toast('La contraseña debe tener al menos 4 caracteres'); return; }
+    if(!p1 || p1.length<6){ toast('La contraseña debe tener al menos 6 caracteres'); return; }
     if(p1!==p2){ toast('Las contraseñas no coinciden'); return; }
-    const salt = genSalt();
-    currentUsuario.salt = salt;
-    currentUsuario.passHash = await hashPassword(p1, salt);
-    await Store.saveUsuarios(usuarios);
+    const {error} = await sb.auth.updateUser({password:p1});
+    if(error){ toast('No se pudo actualizar: '+error.message); return; }
     toast('Contraseña actualizada');
     document.getElementById('aj-pass1').value=''; document.getElementById('aj-pass2').value='';
   });
@@ -2077,9 +2171,7 @@ TPM | Nivel de aceite dentro de rango"></textarea>
   document.querySelectorAll('.btn-logout').forEach(b=> b.addEventListener('click', logout));
 }
 async function syncEmpresa(){
-  const i = empresas.findIndex(e=>e.id===currentEmpresa.id);
-  if(i>-1) empresas[i] = currentEmpresa; else empresas.push(currentEmpresa);
-  await Store.saveEmpresas(empresas);
+  await sb.from('empresas').update({nombre: currentEmpresa.nombre, logo_url: currentEmpresa.logo}).eq('id', currentEmpresa.id);
 }
 
 /* ============ INFORME POWERPOINT DE HALLAZGOS ============ */
@@ -2167,7 +2259,8 @@ async function descargarInformePPTX(rec){
 
       s.addText('ANTES', {x:0.4,y:1.05,w:4.3,h:0.3,fontFace:'Montserrat',fontSize:11,bold:true,color:COBALT,charSpacing:1});
       if(o.foto?.data){
-        s.addImage({data:o.foto.data, x:0.4,y:1.4,w:4.3,h:3.0, sizing:{type:'cover', w:4.3, h:3.0}});
+        const esUrl = o.foto.data.startsWith('http');
+        s.addImage({[esUrl?'path':'data']:o.foto.data, x:0.4,y:1.4,w:4.3,h:3.0, sizing:{type:'cover', w:4.3, h:3.0}});
         s.addShape(pres.ShapeType.rect, {x:0.4,y:1.4,w:4.3,h:3.0,fill:{type:'none'},line:{color:'E2E6EC',width:1}});
       }else{
         s.addShape(pres.ShapeType.rect, {x:0.4,y:1.4,w:4.3,h:3.0,fill:{color:LIGHT},line:{color:'E2E6EC',width:1}});
@@ -2193,29 +2286,34 @@ async function descargarInformePPTX(rec){
 }
 
 /* ============ PANEL CREADOR ============ */
-function renderCreadorPanel(){
+async function renderCreadorPanel(){
   const body = document.getElementById('creador-body');
-  const admins = usuarios.filter(u=>u.rol==='administrador');
+  const admins = await Store.getAdministradores();
+  const usadosPorEmpresa = {};
+  await Promise.all([...new Set(admins.map(a=>a.empresaId))].filter(Boolean).map(async eid=>{
+    usadosPorEmpresa[eid] = await Store.contarUsuariosDeEmpresa(eid);
+  }));
   body.innerHTML = `
     <div class="hint" style="margin-top:0;">Solo tú puedes habilitar administradores. Cada administrador queda asociado a una empresa cliente, con un cupo de usuarios y un tiempo de membresía que tú defines.</div>
 
     <div class="section-title"><span class="dot"></span>Empresas y administradores</div>
     <div class="card">
       ${admins.length?admins.map(a=>{
-        const emp = empresas.find(e=>e.id===a.empresaId);
-        const usados = usuarios.filter(u=>u.empresaId===a.empresaId && u.rol==='usuario').length;
-        const cupo = emp?.limiteUsuarios ?? '∞';
-        const mem = estadoMembresia(emp);
+        const emp = a.empresa;
+        const empresaObj = emp ? {fechaVencimiento: emp.fecha_vencimiento} : null;
+        const usados = usadosPorEmpresa[a.empresaId]||0;
+        const cupo = emp?.limite_usuarios ?? '∞';
+        const mem = estadoMembresia(empresaObj);
         const memTxt = mem.estado==='sin_limite'?'sin fecha límite'
           : mem.estado==='vencida'?`<span style="color:var(--danger);font-weight:700;">vencida hace ${Math.abs(mem.dias)} d.</span>`
           : mem.estado==='por_vencer'?`<span style="color:var(--warning);font-weight:700;">vence en ${mem.dias} d.</span>`
-          : `vence el ${emp?fmtDate(emp.fechaVencimiento):''}`;
+          : `vence el ${emp?fmtDate(emp.fecha_vencimiento):''}`;
         return `<div class="data-row" style="flex-wrap:wrap;">
           <div class="dr-info"><div class="dr-name">${escapeHtml(emp?emp.nombre:'(empresa)')}</div><div class="dr-sub">admin: ${escapeHtml(a.nombre)} · usuario: ${escapeHtml(a.usuario)} · ${a.activo?'activo':'inactivo'} · usuarios: ${usados}/${cupo}</div><div class="dr-sub">membresía: ${memTxt}</div></div>
-          <button class="btn btn-sm ${a.activo?'btn-ghost':'btn-accent'}" data-uid="${a.id}" data-action="toggle-admin">${a.activo?'Desactivar':'Activar'}</button>
+          <button class="btn btn-sm ${a.activo?'btn-ghost':'btn-accent'}" data-uid="${a.id}" data-activo="${a.activo}" data-action="toggle-admin">${a.activo?'Desactivar':'Activar'}</button>
           <div class="inline-add" style="width:100%;margin-top:8px;">
             <input type="number" min="1" value="30" class="renovar-dias" data-empresa="${emp?.id||''}" style="max-width:90px;">
-            <button class="btn btn-sm btn-accent" data-action="renovar" data-empresa="${emp?.id||''}">Renovar (+días)</button>
+            <button class="btn btn-sm btn-accent" data-action="renovar" data-empresa="${emp?.id||''}" data-vencimiento="${emp?.fecha_vencimiento||''}">Renovar (+días)</button>
           </div>
         </div>`;
       }).join(''):'<div class="hint" style="margin-top:0;">Aún no has creado administradores.</div>'}
@@ -2229,7 +2327,7 @@ function renderCreadorPanel(){
       <div class="field"><label>Nombre del administrador</label><input type="text" id="ca-nombre" placeholder="Ej. María Gómez"></div>
       <div class="row2">
         <div class="field"><label>Usuario</label><input type="text" id="ca-usuario" placeholder="Ej. mgomez"></div>
-        <div class="field"><label>Contraseña inicial</label><input type="password" id="ca-pass" placeholder="Mínimo 4 caracteres"></div>
+        <div class="field"><label>Contraseña inicial</label><input type="password" id="ca-pass" placeholder="Mínimo 6 caracteres"></div>
       </div>
       <div class="hint" style="margin-top:0;">Esta contraseña es temporal — el administrador deberá cambiarla al iniciar sesión por primera vez. Cuando la membresía vence, el administrador y sus usuarios quedan bloqueados hasta que la renueves aquí.</div>
       <button class="btn btn-accent btn-block" id="ca-create">+ Crear administrador</button>
@@ -2238,9 +2336,8 @@ function renderCreadorPanel(){
 
   document.querySelectorAll('[data-action="toggle-admin"]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      const u = usuarios.find(x=>x.id===btn.dataset.uid);
-      u.activo = !u.activo;
-      await Store.saveUsuarios(usuarios);
+      const nuevoEstado = btn.dataset.activo !== 'true';
+      await sb.from('perfiles').update({activo: nuevoEstado}).eq('id', btn.dataset.uid);
       renderCreadorPanel();
     });
   });
@@ -2248,20 +2345,21 @@ function renderCreadorPanel(){
   document.querySelectorAll('[data-action="renovar"]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const empId = btn.dataset.empresa;
-      const empresa = empresas.find(e=>e.id===empId);
-      if(!empresa) return;
+      if(!empId) return;
       const diasInput = document.querySelector(`.renovar-dias[data-empresa="${empId}"]`);
       const dias = parseInt(diasInput.value) || 30;
-      const base = (empresa.fechaVencimiento && empresa.fechaVencimiento >= todayISO()) ? new Date(empresa.fechaVencimiento+'T00:00:00') : new Date();
+      const vencActual = btn.dataset.vencimiento;
+      const base = (vencActual && vencActual >= todayISO()) ? new Date(vencActual+'T00:00:00') : new Date();
       base.setDate(base.getDate() + dias);
-      empresa.fechaVencimiento = base.toISOString().slice(0,10);
-      await Store.saveEmpresas(empresas);
-      toast(`Membresía renovada hasta el ${fmtDate(empresa.fechaVencimiento)}`);
+      const nuevaFecha = base.toISOString().slice(0,10);
+      await sb.from('empresas').update({fecha_vencimiento: nuevaFecha}).eq('id', empId);
+      toast(`Membresía renovada hasta el ${fmtDate(nuevaFecha)}`);
       renderCreadorPanel();
     });
   });
 
-  document.getElementById('ca-create').addEventListener('click', async ()=>{
+  document.getElementById('ca-create').addEventListener('click', async function(){
+    const btn = this;
     const empresaNombre = document.getElementById('ca-empresa').value.trim();
     const maxUsuarios = parseInt(document.getElementById('ca-max-usuarios').value) || 1;
     const diasMembresia = parseInt(document.getElementById('ca-dias-membresia').value) || 365;
@@ -2269,18 +2367,20 @@ function renderCreadorPanel(){
     const login = document.getElementById('ca-usuario').value.trim().toLowerCase();
     const pass = document.getElementById('ca-pass').value;
     if(!empresaNombre||!nombre||!login||!pass){ toast('Completa todos los campos'); return; }
-    if(pass.length<4){ toast('La contraseña debe tener al menos 4 caracteres'); return; }
-    if(usuarios.some(u=>u.usuario===login)){ toast('Ese usuario ya existe'); return; }
-    const vencimiento = new Date(); vencimiento.setDate(vencimiento.getDate() + diasMembresia);
-    let empresa = empresas.find(e=>e.nombre.toLowerCase()===empresaNombre.toLowerCase());
-    if(!empresa){ empresa = {id:uid(), nombre:empresaNombre, logo:null, activo:true, limiteUsuarios:maxUsuarios, fechaVencimiento:vencimiento.toISOString().slice(0,10), creadoEn:Date.now()}; empresas.push(empresa); }
-    else { empresa.limiteUsuarios = maxUsuarios; empresa.fechaVencimiento = vencimiento.toISOString().slice(0,10); }
-    await Store.saveEmpresas(empresas);
-    const salt = genSalt();
-    const passHash = await hashPassword(pass, salt);
-    usuarios.push({id:uid(), nombre, usuario:login, rol:'administrador', empresaId:empresa.id, salt, passHash, debeCambiarClave:true, activo:true, creadoEn:Date.now()});
-    await Store.saveUsuarios(usuarios);
-    toast('Administrador creado');
+    if(pass.length<6){ toast('La contraseña debe tener al menos 6 caracteres'); return; }
+    btn.disabled = true; btn.textContent = 'Creando…';
+    try{
+      const vencimiento = new Date(); vencimiento.setDate(vencimiento.getDate() + diasMembresia);
+      const {data:empresaRow, error:eerr} = await sb.from('empresas').insert({
+        nombre: empresaNombre, limite_usuarios: maxUsuarios, fecha_vencimiento: vencimiento.toISOString().slice(0,10)
+      }).select().single();
+      if(eerr) throw eerr;
+      await crearCuenta({nombre, handleOrEmail:login, rol:'administrador', empresaId: empresaRow.id, tempPass: pass});
+      toast('Administrador creado');
+    }catch(err){
+      toast(err.message || 'No se pudo crear el administrador');
+    }
+    btn.disabled = false; btn.textContent = '+ Crear administrador';
     renderCreadorPanel();
   });
 }
