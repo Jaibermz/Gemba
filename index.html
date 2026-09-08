@@ -2399,5 +2399,565 @@ async function descargarInformePPTX(rec){
   const btn = document.getElementById('btn-pptx');
   if(btn){ btn.disabled = true; btn.textContent = 'Generando…'; }
   try{
-    await loadPptxG
+    await loadPptxGenJS();
+    const PptxCtor = window.PptxGenJS;
+    const pres = new PptxCtor();
+    pres.layout = 'LAYOUT_16x9';
 
+    const NAVY='1A2B4C', COBALT='0A4F9E', ACCENT='76FF03', GREY='A0B0C0', LIGHT='F2F4F7', TEXT='1A2B4C', WHITE='FFFFFF';
+    const SEV_COLOR = {alta:'FF5C5C', media:'FFB703', baja:'3FB27F'};
+    const SEV_LABEL = {alta:'ALTA', media:'MEDIA', baja:'BAJA'};
+
+    /* ---- Portada ---- */
+    let s1 = pres.addSlide();
+    s1.background = {color: NAVY};
+    s1.addText('GEMBA APP', {x:0.5,y:0.5,w:4,h:0.35,fontFace:'Montserrat',fontSize:12,color:ACCENT,bold:true,charSpacing:2});
+    s1.addText('INFORME DE HALLAZGOS', {x:0.5,y:2.0,w:9,h:0.9,fontFace:'Montserrat',fontSize:32,color:WHITE,bold:true});
+    s1.addText([rec.areaNombre, rec.maquinaNombre, rec.zonaNombre].filter(Boolean).join(' · '), {x:0.5,y:2.9,w:9,h:0.4,fontFace:'Montserrat',fontSize:16,color:GREY});
+    s1.addText(`Recorrido del ${fmtDate(rec.fecha)}${rec.responsable?`  ·  Responsable: ${rec.responsable}`:''}`, {x:0.5,y:3.3,w:9,h:0.4,fontFace:'Montserrat',fontSize:13,color:GREY});
+    if(currentEmpresa?.nombre) s1.addText(currentEmpresa.nombre, {x:0.5,y:4.9,w:9,h:0.35,fontFace:'Montserrat',fontSize:12,color:'6FA8DC',bold:true});
+
+    /* ---- Resumen ---- */
+    const obs = rec.observaciones||[];
+    const positivos = obs.filter(o=>o.tipo==='positivo');
+    const oportunidades = obs.filter(o=>o.tipo==='oportunidad');
+    const porSeveridad = {alta:0,media:0,baja:0};
+    oportunidades.forEach(o=>{ if(porSeveridad[o.severidad]!==undefined) porSeveridad[o.severidad]++; });
+
+    let s2 = pres.addSlide();
+    s2.background = {color:WHITE};
+    s2.addShape(pres.ShapeType.rect, {x:0,y:0,w:10,h:0.9,fill:{color:NAVY}});
+    s2.addText('Resumen del recorrido', {x:0.4,y:0.2,w:8,h:0.5,fontFace:'Montserrat',fontSize:20,bold:true,color:WHITE});
+    const cards = [
+      {label:'Puntos positivos', value:positivos.length, color:'3FB27F'},
+      {label:'Oport. altas', value:porSeveridad.alta, color:SEV_COLOR.alta},
+      {label:'Oport. medias', value:porSeveridad.media, color:SEV_COLOR.media},
+      {label:'Oport. bajas', value:porSeveridad.baja, color:SEV_COLOR.baja},
+    ];
+    cards.forEach((c,i)=>{
+      const x = 0.5 + i*2.35;
+      s2.addShape(pres.ShapeType.roundRect, {x, y:1.4, w:2.1, h:1.5, rectRadius:0.08, fill:{color:LIGHT}, line:{color:'E2E6EC', width:1}});
+      s2.addText(String(c.value), {x, y:1.55, w:2.1, h:0.8, align:'center', fontFace:'Montserrat', fontSize:34, bold:true, color:c.color});
+      s2.addText(c.label, {x, y:2.35, w:2.1, h:0.4, align:'center', fontFace:'Montserrat', fontSize:11, color:TEXT});
+    });
+    if(rec.scores?.general!==null && rec.scores?.general!==undefined){
+      s2.addText(`Puntaje general del recorrido: ${Math.round(rec.scores.general)} / 100`, {x:0.5,y:3.25,w:9,h:0.4,fontFace:'Montserrat',fontSize:14,bold:true,color:NAVY});
+    }
+    if(rec.notasCierre){
+      s2.addText('Notas de cierre', {x:0.5,y:3.75,w:9,h:0.3,fontFace:'Montserrat',fontSize:12,bold:true,color:NAVY});
+      s2.addText(rec.notasCierre, {x:0.5,y:4.05,w:9,h:1.3,fontFace:'Montserrat',fontSize:11,color:TEXT,valign:'top'});
+    }
+
+    /* ---- Un slide por hallazgo: oportunidades (alta→media→baja) y luego positivos ---- */
+    const orden = {alta:0, media:1, baja:2};
+    const oportunidadesOrdenadas = [...oportunidades].sort((a,b)=>(orden[a.severidad]??3)-(orden[b.severidad]??3));
+    const hallazgos = [...oportunidadesOrdenadas, ...positivos];
+
+    hallazgos.forEach(o=>{
+      let s = pres.addSlide();
+      s.background = {color:WHITE};
+      const esOportunidad = o.tipo==='oportunidad';
+      const badgeColor = esOportunidad ? (SEV_COLOR[o.severidad]||GREY) : '3FB27F';
+      const badgeLabel = esOportunidad ? `OPORTUNIDAD · ${SEV_LABEL[o.severidad]||''}` : 'PUNTO POSITIVO';
+      const badgeTextColor = (esOportunidad && o.severidad==='media') ? NAVY : WHITE;
+
+      s.addShape(pres.ShapeType.rect, {x:0,y:0,w:10,h:0.9,fill:{color:NAVY}});
+      s.addText(o.categoria || (esOportunidad?'Oportunidad de mejora':'Punto positivo'), {x:0.4,y:0.12,w:6.5,h:0.5,fontFace:'Montserrat',fontSize:18,bold:true,color:WHITE});
+      s.addShape(pres.ShapeType.roundRect, {x:7.1,y:0.2,w:2.5,h:0.5,rectRadius:0.25,fill:{color:badgeColor}});
+      s.addText(badgeLabel, {x:7.1,y:0.2,w:2.5,h:0.5,align:'center',valign:'middle',fontFace:'Montserrat',fontSize:10,bold:true,color:badgeTextColor});
+
+      s.addText('ANTES', {x:0.4,y:1.05,w:4.3,h:0.3,fontFace:'Montserrat',fontSize:11,bold:true,color:COBALT,charSpacing:1});
+      if(o.foto?.data){
+        const esUrl = o.foto.data.startsWith('http');
+        s.addImage({[esUrl?'path':'data']:o.foto.data, x:0.4,y:1.4,w:4.3,h:3.0, sizing:{type:'cover', w:4.3, h:3.0}});
+        s.addShape(pres.ShapeType.rect, {x:0.4,y:1.4,w:4.3,h:3.0,fill:{type:'none'},line:{color:'E2E6EC',width:1}});
+      }else{
+        s.addShape(pres.ShapeType.rect, {x:0.4,y:1.4,w:4.3,h:3.0,fill:{color:LIGHT},line:{color:'E2E6EC',width:1}});
+        s.addText('Sin foto registrada', {x:0.4,y:1.4,w:4.3,h:3.0,align:'center',valign:'middle',fontFace:'Montserrat',fontSize:11,color:GREY});
+      }
+
+      s.addText('DESPUÉS', {x:5.3,y:1.05,w:4.3,h:0.3,fontFace:'Montserrat',fontSize:11,bold:true,color:GREY,charSpacing:1});
+      s.addShape(pres.ShapeType.rect, {x:5.3,y:1.4,w:4.3,h:3.0,fill:{color:'FAFBFC'},line:{color:GREY,width:1,dashType:'dash'}});
+      s.addText('Espacio para la foto de seguimiento / verificación', {x:5.6,y:2.6,w:3.7,h:0.7,align:'center',valign:'middle',fontFace:'Montserrat',fontSize:10,color:GREY,italic:true});
+
+      s.addText('Comentarios', {x:0.4,y:4.55,w:9,h:0.28,fontFace:'Montserrat',fontSize:11,bold:true,color:NAVY});
+      s.addText(o.descripcion||'(sin comentarios)', {x:0.4,y:4.83,w:9,h:0.65,fontFace:'Montserrat',fontSize:10.5,color:TEXT,valign:'top'});
+    });
+
+    const nombreArchivo = `Informe-Hallazgos-${slugify(rec.maquinaNombre||'recorrido')}-${rec.fecha}.pptx`;
+    await pres.writeFile({fileName: nombreArchivo});
+    toast('PowerPoint descargado');
+  }catch(err){
+    toast(err.message || 'No se pudo generar el PowerPoint');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '📊 PowerPoint'; }
+  }
+}
+
+/* ============ PANEL CREADOR ============ */
+async function renderCreadorPanel(){
+  const body = document.getElementById('creador-body');
+  const admins = await Store.getAdministradores();
+  const usadosPorEmpresa = {};
+  await Promise.all([...new Set(admins.map(a=>a.empresaId))].filter(Boolean).map(async eid=>{
+    usadosPorEmpresa[eid] = await Store.contarUsuariosDeEmpresa(eid);
+  }));
+  body.innerHTML = `
+    <div class="hint" style="margin-top:0;">Solo tú puedes habilitar administradores. Cada administrador queda asociado a una empresa cliente, con un cupo de usuarios y un tiempo de membresía que tú defines.</div>
+
+    <div class="section-title"><span class="dot"></span>Empresas y administradores</div>
+    <div class="card">
+      ${admins.length?admins.map(a=>{
+        const emp = a.empresa;
+        const empresaObj = emp ? {fechaVencimiento: emp.fecha_vencimiento} : null;
+        const usados = usadosPorEmpresa[a.empresaId]||0;
+        const cupo = emp?.limite_usuarios ?? '∞';
+        const mem = estadoMembresia(empresaObj);
+        const memTxt = mem.estado==='sin_limite'?'sin fecha límite'
+          : mem.estado==='vencida'?`<span style="color:var(--danger);font-weight:700;">vencida hace ${Math.abs(mem.dias)} d.</span>`
+          : mem.estado==='por_vencer'?`<span style="color:var(--warning);font-weight:700;">vence en ${mem.dias} d.</span>`
+          : `vence el ${emp?fmtDate(emp.fecha_vencimiento):''}`;
+        return `<div class="data-row" style="flex-wrap:wrap;">
+          <div class="dr-info"><div class="dr-name">${escapeHtml(emp?emp.nombre:'(empresa)')}</div><div class="dr-sub">admin: ${escapeHtml(a.nombre)} · usuario: ${escapeHtml(a.usuario)} · ${a.activo?'activo':'inactivo'} · usuarios: ${usados}/${cupo}</div><div class="dr-sub">membresía: ${memTxt}</div></div>
+          <button class="btn btn-sm ${a.activo?'btn-ghost':'btn-accent'}" data-uid="${a.id}" data-activo="${a.activo}" data-action="toggle-admin">${a.activo?'Desactivar':'Activar'}</button>
+          <div class="inline-add" style="width:100%;margin-top:8px;">
+            <input type="number" min="1" value="30" class="renovar-dias" data-empresa="${emp?.id||''}" style="max-width:90px;">
+            <button class="btn btn-sm btn-accent" data-action="renovar" data-empresa="${emp?.id||''}" data-vencimiento="${emp?.fecha_vencimiento||''}">Renovar (+días)</button>
+          </div>
+        </div>`;
+      }).join(''):'<div class="hint" style="margin-top:0;">Aún no has creado administradores.</div>'}
+    </div>
+
+    <div class="section-title"><span class="dot"></span>Crear administrador para una empresa cliente</div>
+    <div class="card settings-card">
+      <div class="field"><label>Nombre de la empresa cliente</label><input type="text" id="ca-empresa" placeholder="Ej. Textiles del Valle S.A.S."></div>
+      <div class="field"><label>Cupo de usuarios que este administrador podrá crear</label><input type="number" id="ca-max-usuarios" min="1" value="5"></div>
+      <div class="field"><label>Duración de la membresía (días)</label><input type="number" id="ca-dias-membresia" min="1" value="365"></div>
+      <div class="field"><label>Nombre del administrador</label><input type="text" id="ca-nombre" placeholder="Ej. María Gómez"></div>
+      <div class="row2">
+        <div class="field"><label>Usuario</label><input type="text" id="ca-usuario" placeholder="Ej. mgomez"></div>
+        <div class="field"><label>Contraseña inicial</label><input type="password" id="ca-pass" placeholder="Mínimo 6 caracteres"></div>
+      </div>
+      <div class="hint" style="margin-top:0;">Esta contraseña es temporal — el administrador deberá cambiarla al iniciar sesión por primera vez. Cuando la membresía vence, el administrador y sus usuarios quedan bloqueados hasta que la renueves aquí.</div>
+      <button class="btn btn-accent btn-block" id="ca-create">+ Crear administrador</button>
+    </div>
+  `;
+
+  document.querySelectorAll('[data-action="toggle-admin"]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const nuevoEstado = btn.dataset.activo !== 'true';
+      await sb.from('perfiles').update({activo: nuevoEstado}).eq('id', btn.dataset.uid);
+      renderCreadorPanel();
+    });
+  });
+
+  document.querySelectorAll('[data-action="renovar"]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const empId = btn.dataset.empresa;
+      if(!empId) return;
+      const diasInput = document.querySelector(`.renovar-dias[data-empresa="${empId}"]`);
+      const dias = parseInt(diasInput.value) || 30;
+      const vencActual = btn.dataset.vencimiento;
+      const base = (vencActual && vencActual >= todayISO()) ? new Date(vencActual+'T00:00:00') : new Date();
+      base.setDate(base.getDate() + dias);
+      const nuevaFecha = base.toISOString().slice(0,10);
+      await sb.from('empresas').update({fecha_vencimiento: nuevaFecha}).eq('id', empId);
+      toast(`Membresía renovada hasta el ${fmtDate(nuevaFecha)}`);
+      renderCreadorPanel();
+    });
+  });
+
+  document.getElementById('ca-create').addEventListener('click', async function(){
+    const btn = this;
+    const empresaNombre = document.getElementById('ca-empresa').value.trim();
+    const maxUsuarios = parseInt(document.getElementById('ca-max-usuarios').value) || 1;
+    const diasMembresia = parseInt(document.getElementById('ca-dias-membresia').value) || 365;
+    const nombre = document.getElementById('ca-nombre').value.trim();
+    const login = document.getElementById('ca-usuario').value.trim().toLowerCase();
+    const pass = document.getElementById('ca-pass').value;
+    if(!empresaNombre||!nombre||!login||!pass){ toast('Completa todos los campos'); return; }
+    if(pass.length<6){ toast('La contraseña debe tener al menos 6 caracteres'); return; }
+    btn.disabled = true; btn.textContent = 'Creando…';
+    try{
+      const vencimiento = new Date(); vencimiento.setDate(vencimiento.getDate() + diasMembresia);
+      const {data:empresaRow, error:eerr} = await sb.from('empresas').insert({
+        nombre: empresaNombre, limite_usuarios: maxUsuarios, fecha_vencimiento: vencimiento.toISOString().slice(0,10)
+      }).select().single();
+      if(eerr) throw eerr;
+      await crearCuenta({nombre, handleOrEmail:login, rol:'administrador', empresaId: empresaRow.id, tempPass: pass});
+      toast('Administrador creado');
+    }catch(err){
+      toast(err.message || 'No se pudo crear el administrador');
+    }
+    btn.disabled = false; btn.textContent = '+ Crear administrador';
+    renderCreadorPanel();
+  });
+}
+
+/* ============ MÓDULO: CERTIFICACIÓN TPM ============ */
+async function renderTpm(){
+  const body = document.getElementById('tpm-body');
+  if(tpmSubView==='nueva'){ body.innerHTML = tpmNuevaHtml(); wireTpmNueva(); return; }
+  if(tpmSubView==='detalle'){ await renderTpmDetalle(); return; }
+  const certs = await Store.getTpmCertificaciones();
+  body.innerHTML = `
+    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🧰 Certificación TPM</div>
+    <button class="btn btn-accent btn-block" id="tpm-nueva-btn" style="margin-bottom:14px;">+ Nueva certificación</button>
+    ${certs.length===0?`<div class="hint" style="margin-top:0;">Aún no hay certificaciones registradas.</div>`:''}
+    ${certs.map(c=>`
+      <div class="card walk-card" data-id="${c.id}">
+        <div class="info">
+          <div class="maquina">${escapeHtml(c.maquinaNombre||'(máquina)')}</div>
+          <div class="meta">${escapeHtml(c.areaNombre||'')} · ${fmtDate(c.fecha)} · ${escapeHtml(c.responsable||'')}</div>
+        </div>
+        <div class="gauge-num" style="color:${colorForScore(c.score)}">${c.score===null||c.score===undefined?'–':Math.round(c.score)}</div>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('tpm-nueva-btn').addEventListener('click', startTpmNueva);
+  body.querySelectorAll('.walk-card').forEach(el=>{
+    el.addEventListener('click', ()=>{ tpmDetalleId = el.dataset.id; tpmSubView='detalle'; renderTpm(); });
+  });
+}
+async function startTpmNueva(){
+  const vars = await Store.getTpmVariables();
+  if(vars.length===0){ toast('Primero un administrador debe crear las variables de TPM en Ajustes'); return; }
+  tpmForm = {
+    id: uid(), fecha: todayISO(), responsable: currentUsuario.nombre,
+    areaId:'', areaNombre:'', maquinaId:'', maquinaNombre:'', procesoProductivo:'', notas:'',
+    items: vars.map(v=>({id:uid(), variableId:v.id, nombre:v.nombre, criterio:v.criterio, puntaje:100, observacion:'', foto:null}))
+  };
+  tpmSubView = 'nueva';
+  renderTpm();
+}
+function tpmNuevaHtml(){
+  const areaOpts = catalog.areas.map(a=>`<option value="${a.id}" ${a.id===tpmForm.areaId?'selected':''}>${escapeHtml(a.nombre)}</option>`).join('');
+  const area = catalog.areas.find(a=>a.id===tpmForm.areaId);
+  const maquinas = area?area.maquinas:[];
+  const maqOpts = maquinas.map(m=>`<option value="${m.id}" ${m.id===tpmForm.maquinaId?'selected':''}>${escapeHtml(m.nombre)}</option>`).join('');
+  return `
+    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🧰 Nueva certificación TPM</div>
+    <div class="field"><label>Fecha</label><input type="date" id="tpm-fecha" value="${tpmForm.fecha}"></div>
+    <div class="field"><label>Área</label><select id="tpm-area"><option value="">Selecciona un área…</option>${areaOpts}</select></div>
+    <div class="field"><label>Máquina / equipo</label><select id="tpm-maquina" ${!tpmForm.areaId?'disabled':''}><option value="">Selecciona una máquina…</option>${maqOpts}</select></div>
+    <div class="section-title"><span class="dot"></span>Variables a certificar</div>
+    <div class="hint">Da un puntaje de 0 a 100 a cada variable según el nivel de cumplimiento encontrado.</div>
+    <div id="tpm-items">${tpmForm.items.map((it,i)=>tpmItemHtml(it,i)).join('')}</div>
+    <div class="field"><label>Notas de cierre (opcional)</label><textarea id="tpm-notas" placeholder="Comentarios generales de la certificación">${escapeHtml(tpmForm.notas)}</textarea></div>
+    <div class="wizard-nav">
+      <button class="btn" id="tpm-cancelar">Cancelar</button>
+      <button class="btn btn-accent" id="tpm-guardar">Guardar certificación</button>
+    </div>
+  `;
+}
+function tpmItemHtml(it,i){
+  return `<div class="check-item" data-i="${i}">
+    <div class="check-item-head"><div style="flex:1;"><b>${escapeHtml(it.nombre)}</b>${it.criterio?`<div class="hint" style="margin:2px 0 0;">${escapeHtml(it.criterio)}</div>`:''}</div></div>
+    <div class="field" style="margin:10px 0 4px;">
+      <input type="range" min="0" max="100" step="5" class="tpm-puntaje" value="${it.puntaje}" style="width:100%;">
+      <div style="text-align:center;font-weight:700;color:var(--accent);" class="tpm-puntaje-num">${it.puntaje}%</div>
+    </div>
+    <textarea class="tpm-obs" placeholder="¿Qué encontraste aquí?">${escapeHtml(it.observacion||'')}</textarea>
+    <div class="photo-zone">
+      <label class="photo-input-label">
+        📷 ${it.foto?'Cambiar foto':'Agregar foto'}
+        <input type="file" accept="image/*" capture="environment" class="tpm-photo" style="display:none">
+      </label>
+      ${it.foto?`<div class="photo-preview"><img src="${it.foto.data}"><button class="rm-photo tpm-rm-photo">×</button></div>
+      <div class="photo-name-field"><input type="text" class="tpm-foto-nombre" placeholder="Nombre de la foto" value="${escapeHtml(it.foto.nombre||'')}"></div>`:''}
+    </div>
+  </div>`;
+}
+function wireTpmNueva(){
+  document.getElementById('tpm-fecha').addEventListener('change', e=> tpmForm.fecha = e.target.value);
+  document.getElementById('tpm-area').addEventListener('change', e=>{
+    tpmForm.areaId = e.target.value;
+    const area = catalog.areas.find(a=>a.id===tpmForm.areaId);
+    tpmForm.areaNombre = area?area.nombre:'';
+    tpmForm.maquinaId=''; tpmForm.maquinaNombre=''; tpmForm.procesoProductivo='';
+    renderTpm();
+  });
+  document.getElementById('tpm-maquina').addEventListener('change', e=>{
+    tpmForm.maquinaId = e.target.value;
+    const area = catalog.areas.find(a=>a.id===tpmForm.areaId);
+    const m = area? area.maquinas.find(x=>x.id===tpmForm.maquinaId) : null;
+    tpmForm.maquinaNombre = m?m.nombre:''; tpmForm.procesoProductivo = m?m.procesoProductivo:'';
+  });
+  document.getElementById('tpm-notas').addEventListener('input', e=> tpmForm.notas = e.target.value);
+  document.querySelectorAll('#tpm-items .check-item').forEach(row=>{
+    const i = parseInt(row.dataset.i);
+    const it = tpmForm.items[i];
+    const range = row.querySelector('.tpm-puntaje');
+    const num = row.querySelector('.tpm-puntaje-num');
+    range.addEventListener('input', ()=>{ it.puntaje = parseInt(range.value); num.textContent = it.puntaje+'%'; });
+    row.querySelector('.tpm-obs').addEventListener('input', e=> it.observacion = e.target.value);
+    row.querySelector('.tpm-photo').addEventListener('change', e=>{
+      handlePhotoFile(e.target.files[0], dataUrl=>{ it.foto = {data:dataUrl, nombre: tpmForm.maquinaNombre||'foto'}; renderTpm(); });
+    });
+    const rmBtn = row.querySelector('.tpm-rm-photo');
+    if(rmBtn) rmBtn.addEventListener('click', ()=>{ it.foto=null; renderTpm(); });
+    const nameField = row.querySelector('.tpm-foto-nombre');
+    if(nameField) nameField.addEventListener('input', e=>{ it.foto.nombre = e.target.value; });
+  });
+  document.getElementById('tpm-cancelar').addEventListener('click', ()=>{ tpmForm=null; tpmSubView='lista'; renderTpm(); });
+  document.getElementById('tpm-guardar').addEventListener('click', async function(){
+    if(!tpmForm.maquinaId){ toast('Selecciona la máquina certificada'); return; }
+    const btn = this;
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try{
+      tpmForm.score = tpmForm.items.length ? tpmForm.items.reduce((a,it)=>a+it.puntaje,0)/tpmForm.items.length : null;
+      await Store.saveTpmCertificacion(tpmForm);
+      toast('Certificación guardada');
+      tpmDetalleId = tpmForm.id; tpmForm=null; tpmSubView='detalle';
+      renderTpm();
+    }catch(err){
+      toast('No se pudo guardar: '+(err.message||''));
+      btn.disabled=false; btn.textContent='Guardar certificación';
+    }
+  });
+}
+async function renderTpmDetalle(){
+  const body = document.getElementById('tpm-body');
+  const cert = await Store.getTpmCertificacion(tpmDetalleId);
+  if(!cert){ tpmSubView='lista'; renderTpm(); return; }
+  const todas = await Store.getTpmCertificaciones();
+  const historial = todas.filter(c=>c.maquinaId===cert.maquinaId && c.score!==null && c.score!==undefined).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const idx = historial.findIndex(c=>c.id===cert.id);
+  const prev = idx>0?historial[idx-1]:null;
+  body.innerHTML = `
+    <button class="btn btn-ghost btn-sm" id="tpm-volver">← Volver</button>
+    <div class="card" style="margin-top:10px;">
+      ${gaugeSvg(cert.score)}
+      <div style="text-align:center;"><b>${escapeHtml(cert.maquinaNombre||'')}</b><div class="hint" style="margin:2px 0 0;">${escapeHtml(cert.areaNombre||'')} · ${fmtDate(cert.fecha)} · ${escapeHtml(cert.responsable||'')}</div></div>
+      ${prev?`<div class="hint" style="text-align:center;margin-top:6px;">Certificación anterior en esta máquina: ${Math.round(prev.score)}% (${fmtDate(prev.fecha)})</div>`:''}
+    </div>
+    ${historial.length>1?`<div class="section-title"><span class="dot"></span>Tendencia en esta máquina</div><div class="card">${sparklineSvg(historial.map(h=>h.score), 'var(--accent)')}</div>`:''}
+    <div class="section-title"><span class="dot"></span>Variables evaluadas</div>
+    ${cert.items.map(it=>`
+      <div class="check-item">
+        <div class="check-item-head"><b>${escapeHtml(it.nombre)}</b><span style="margin-left:auto;font-weight:700;color:${colorForScore(it.puntaje)}">${Math.round(it.puntaje)}%</span></div>
+        ${it.observacion?`<div class="hint" style="margin:4px 0;">${escapeHtml(it.observacion)}</div>`:''}
+        ${it.foto?`<div class="photo-preview"><img src="${it.foto.data}"></div>`:''}
+      </div>
+    `).join('')}
+    ${cert.notas?`<div class="section-title"><span class="dot"></span>Notas de cierre</div><div class="card">${escapeHtml(cert.notas)}</div>`:''}
+    <button class="btn btn-danger-outline btn-block" id="tpm-borrar" style="margin-top:16px;">Eliminar certificación</button>
+  `;
+  document.getElementById('tpm-volver').addEventListener('click', ()=>{ tpmSubView='lista'; renderTpm(); });
+  document.getElementById('tpm-borrar').addEventListener('click', async ()=>{
+    if(!confirm('¿Eliminar esta certificación? Esta acción no se puede deshacer.')) return;
+    await Store.deleteTpmCertificacion(cert.id);
+    toast('Certificación eliminada');
+    tpmSubView='lista'; renderTpm();
+  });
+}
+
+/* ============ MÓDULO: ENTREGA DE TURNO ============ */
+async function renderTurno(){
+  const body = document.getElementById('turno-body');
+  if(turnoSubView==='nueva'){ body.innerHTML = turnoNuevaHtml(); wireTurnoNueva(); return; }
+  if(turnoSubView==='detalle'){ await renderTurnoDetalle(); return; }
+  if(turnoSubView==='informe'){ await renderTurnoInforme(); return; }
+  const entregas = await Store.getEntregasTurno();
+  body.innerHTML = `
+    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🔄 Entrega de turno</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn btn-accent" id="turno-nueva-btn">+ Nueva entrega</button>
+      <button class="btn" id="turno-informe-btn">📊 Informe ejecutivo</button>
+    </div>
+    ${entregas.length===0?`<div class="hint" style="margin-top:0;">Aún no hay entregas registradas.</div>`:''}
+    ${entregas.map(e=>`
+      <div class="card walk-card" data-id="${e.id}">
+        <div class="info">
+          <div class="maquina">${escapeHtml(e.maquinaNombre||e.areaNombre||'(turno)')}</div>
+          <div class="meta">${escapeHtml(e.turno)} · ${fmtDate(e.fecha)} · ${escapeHtml(e.responsable||'')}</div>
+        </div>
+        <div class="gauge-num" style="color:${colorForScore(e.cumplePct)}">${e.cumplePct===null||e.cumplePct===undefined?'–':Math.round(e.cumplePct)}%</div>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('turno-nueva-btn').addEventListener('click', startTurnoNueva);
+  document.getElementById('turno-informe-btn').addEventListener('click', ()=>{ turnoSubView='informe'; renderTurno(); });
+  body.querySelectorAll('.walk-card').forEach(el=>{
+    el.addEventListener('click', ()=>{ turnoDetalleId=el.dataset.id; turnoSubView='detalle'; renderTurno(); });
+  });
+}
+async function startTurnoNueva(){
+  const vars = await Store.getTurnoVariables();
+  if(vars.length===0){ toast('Primero un administrador debe crear las variables de entrega de turno en Ajustes'); return; }
+  const turnos = (currentEmpresa && currentEmpresa.turnos) || ['Mañana','Tarde','Noche'];
+  turnoForm = {
+    id:uid(), fecha:todayISO(), responsable:currentUsuario.nombre, turno:turnos[0]||'',
+    areaId:'', areaNombre:'', maquinaId:'', maquinaNombre:'', novedades:'',
+    items: vars.map(v=>({id:uid(), variableId:v.id, nombre:v.nombre, cumple:true, observacion:'', foto:null}))
+  };
+  turnoSubView='nueva';
+  renderTurno();
+}
+function turnoNuevaHtml(){
+  const turnos = (currentEmpresa && currentEmpresa.turnos) || ['Mañana','Tarde','Noche'];
+  const areaOpts = catalog.areas.map(a=>`<option value="${a.id}" ${a.id===turnoForm.areaId?'selected':''}>${escapeHtml(a.nombre)}</option>`).join('');
+  const area = catalog.areas.find(a=>a.id===turnoForm.areaId);
+  const maquinas = area?area.maquinas:[];
+  const maqOpts = maquinas.map(m=>`<option value="${m.id}" ${m.id===turnoForm.maquinaId?'selected':''}>${escapeHtml(m.nombre)}</option>`).join('');
+  return `
+    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🔄 Nueva entrega de turno</div>
+    <div class="field"><label>Fecha</label><input type="date" id="turno-fecha" value="${turnoForm.fecha}"></div>
+    <div class="field"><label>Turno</label><select id="turno-turno">${turnos.map(t=>`<option value="${escapeHtml(t)}" ${t===turnoForm.turno?'selected':''}>${escapeHtml(t)}</option>`).join('')}</select></div>
+    <div class="field"><label>Área (opcional)</label><select id="turno-area"><option value="">Sin área específica</option>${areaOpts}</select></div>
+    <div class="field"><label>Máquina / línea (opcional)</label><select id="turno-maquina" ${!turnoForm.areaId?'disabled':''}><option value="">Sin máquina específica</option>${maqOpts}</select></div>
+    <div class="section-title"><span class="dot"></span>Variables del turno</div>
+    <div id="turno-items">${turnoForm.items.map((it,i)=>turnoItemHtml(it,i)).join('')}</div>
+    <div class="field"><label>Novedades del turno (opcional)</label><textarea id="turno-novedades" placeholder="Pendientes o situaciones a informar al siguiente turno">${escapeHtml(turnoForm.novedades)}</textarea></div>
+    <div class="wizard-nav">
+      <button class="btn" id="turno-cancelar">Cancelar</button>
+      <button class="btn btn-accent" id="turno-guardar">Guardar entrega</button>
+    </div>
+  `;
+}
+function turnoItemHtml(it,i){
+  return `<div class="check-item ${it.cumple?'st-cumple':'st-no'}" data-i="${i}">
+    <div class="check-item-head"><b style="flex:1;">${escapeHtml(it.nombre)}</b></div>
+    <div class="status-row">
+      <button class="status-btn tn-status ${it.cumple?'sel-cumple':''}" data-v="true">Cumple</button>
+      <button class="status-btn tn-status ${!it.cumple?'sel-no':''}" data-v="false">No cumple</button>
+    </div>
+    <textarea class="tn-obs" placeholder="Observación (opcional)">${escapeHtml(it.observacion||'')}</textarea>
+    <div class="photo-zone">
+      <label class="photo-input-label">
+        📷 ${it.foto?'Cambiar foto':'Agregar foto'}
+        <input type="file" accept="image/*" capture="environment" class="tn-photo" style="display:none">
+      </label>
+      ${it.foto?`<div class="photo-preview"><img src="${it.foto.data}"><button class="rm-photo tn-rm-photo">×</button></div>
+      <div class="photo-name-field"><input type="text" class="tn-foto-nombre" placeholder="Nombre de la foto" value="${escapeHtml(it.foto.nombre||'')}"></div>`:''}
+    </div>
+  </div>`;
+}
+function wireTurnoNueva(){
+  document.getElementById('turno-fecha').addEventListener('change', e=> turnoForm.fecha = e.target.value);
+  document.getElementById('turno-turno').addEventListener('change', e=> turnoForm.turno = e.target.value);
+  document.getElementById('turno-area').addEventListener('change', e=>{
+    turnoForm.areaId = e.target.value;
+    const area = catalog.areas.find(a=>a.id===turnoForm.areaId);
+    turnoForm.areaNombre = area?area.nombre:'';
+    turnoForm.maquinaId=''; turnoForm.maquinaNombre='';
+    renderTurno();
+  });
+  document.getElementById('turno-maquina').addEventListener('change', e=>{
+    turnoForm.maquinaId = e.target.value;
+    const area = catalog.areas.find(a=>a.id===turnoForm.areaId);
+    const m = area? area.maquinas.find(x=>x.id===turnoForm.maquinaId):null;
+    turnoForm.maquinaNombre = m?m.nombre:'';
+  });
+  document.getElementById('turno-novedades').addEventListener('input', e=> turnoForm.novedades = e.target.value);
+  document.querySelectorAll('#turno-items .check-item').forEach(row=>{
+    const i = parseInt(row.dataset.i);
+    const it = turnoForm.items[i];
+    row.querySelectorAll('.tn-status').forEach(b=>{
+      b.addEventListener('click', ()=>{ it.cumple = b.dataset.v==='true'; renderTurno(); });
+    });
+    row.querySelector('.tn-obs').addEventListener('input', e=> it.observacion = e.target.value);
+    row.querySelector('.tn-photo').addEventListener('change', e=>{
+      handlePhotoFile(e.target.files[0], dataUrl=>{ it.foto={data:dataUrl, nombre: turnoForm.maquinaNombre||'foto'}; renderTurno(); });
+    });
+    const rm = row.querySelector('.tn-rm-photo');
+    if(rm) rm.addEventListener('click', ()=>{ it.foto=null; renderTurno(); });
+    const nameField = row.querySelector('.tn-foto-nombre');
+    if(nameField) nameField.addEventListener('input', e=>{ it.foto.nombre = e.target.value; });
+  });
+  document.getElementById('turno-cancelar').addEventListener('click', ()=>{ turnoForm=null; turnoSubView='lista'; renderTurno(); });
+  document.getElementById('turno-guardar').addEventListener('click', async function(){
+    const btn = this;
+    btn.disabled=true; btn.textContent='Guardando…';
+    try{
+      const n = turnoForm.items.length;
+      const cumplen = turnoForm.items.filter(it=>it.cumple).length;
+      turnoForm.cumplePct = n? (cumplen/n)*100 : null;
+      await Store.saveEntregaTurno(turnoForm);
+      toast('Entrega guardada');
+      turnoDetalleId = turnoForm.id; turnoForm=null; turnoSubView='detalle';
+      renderTurno();
+    }catch(err){
+      toast('No se pudo guardar: '+(err.message||''));
+      btn.disabled=false; btn.textContent='Guardar entrega';
+    }
+  });
+}
+async function renderTurnoDetalle(){
+  const body = document.getElementById('turno-body');
+  const ent = await Store.getEntregaTurno(turnoDetalleId);
+  if(!ent){ turnoSubView='lista'; renderTurno(); return; }
+  body.innerHTML = `
+    <button class="btn btn-ghost btn-sm" id="turno-volver">← Volver</button>
+    <div class="card" style="margin-top:10px;">
+      ${gaugeSvg(ent.cumplePct)}
+      <div style="text-align:center;"><b>${escapeHtml(ent.turno)}</b><div class="hint" style="margin:2px 0 0;">${escapeHtml(ent.areaNombre||'')} ${ent.maquinaNombre?'· '+escapeHtml(ent.maquinaNombre):''} · ${fmtDate(ent.fecha)} · ${escapeHtml(ent.responsable||'')}</div></div>
+    </div>
+    <div class="section-title"><span class="dot"></span>Variables</div>
+    ${ent.items.map(it=>`
+      <div class="check-item ${it.cumple?'st-cumple':'st-no'}">
+        <div class="check-item-head"><b>${escapeHtml(it.nombre)}</b><span class="badge ${it.cumple?'badge-success':'badge-danger'}" style="margin-left:auto;">${it.cumple?'Cumple':'No cumple'}</span></div>
+        ${it.observacion?`<div class="hint" style="margin:4px 0;">${escapeHtml(it.observacion)}</div>`:''}
+        ${it.foto?`<div class="photo-preview"><img src="${it.foto.data}"></div>`:''}
+      </div>
+    `).join('')}
+    ${ent.novedades?`<div class="section-title"><span class="dot"></span>Novedades</div><div class="card">${escapeHtml(ent.novedades)}</div>`:''}
+    <button class="btn btn-danger-outline btn-block" id="turno-borrar" style="margin-top:16px;">Eliminar entrega</button>
+  `;
+  document.getElementById('turno-volver').addEventListener('click', ()=>{ turnoSubView='lista'; renderTurno(); });
+  document.getElementById('turno-borrar').addEventListener('click', async ()=>{
+    if(!confirm('¿Eliminar esta entrega de turno?')) return;
+    await Store.deleteEntregaTurno(ent.id);
+    toast('Entrega eliminada');
+    turnoSubView='lista'; renderTurno();
+  });
+}
+let turnoInformeDesde = null;
+let turnoInformeHasta = null;
+async function renderTurnoInforme(){
+  const body = document.getElementById('turno-body');
+  if(!turnoInformeHasta){ turnoInformeHasta = todayISO(); }
+  if(!turnoInformeDesde){ const d=new Date(); d.setDate(d.getDate()-6); turnoInformeDesde = d.toISOString().slice(0,10); }
+  const todas = await Store.getEntregasTurno();
+  const filtradas = todas.filter(e=> e.fecha>=turnoInformeDesde && e.fecha<=turnoInformeHasta);
+  const prom = filtradas.length? filtradas.reduce((a,e)=>a+(e.cumplePct||0),0)/filtradas.length : null;
+  const porTurno = {};
+  filtradas.forEach(e=>{ (porTurno[e.turno] = porTurno[e.turno]||[]).push(e.cumplePct||0); });
+  body.innerHTML = `
+    <button class="btn btn-ghost btn-sm" id="ti-volver">← Volver</button>
+    <div class="section-title"><span class="dot"></span>📊 Informe ejecutivo de turno</div>
+    <div class="row2">
+      <div class="field"><label>Desde</label><input type="date" id="ti-desde" value="${turnoInformeDesde}"></div>
+      <div class="field"><label>Hasta</label><input type="date" id="ti-hasta" value="${turnoInformeHasta}"></div>
+    </div>
+    <div class="card">
+      ${gaugeSvg(prom)}
+      <div class="hint" style="text-align:center;">${filtradas.length} entrega(s) de turno en el periodo</div>
+    </div>
+    <div class="section-title"><span class="dot"></span>Cumplimiento por turno</div>
+    <div class="card">
+      ${Object.keys(porTurno).length===0?`<div class="hint" style="margin-top:0;">Sin datos en este periodo.</div>`:
+        Object.keys(porTurno).map(t=>{
+          const vals = porTurno[t]; const avg = vals.reduce((a,v)=>a+v,0)/vals.length;
+          return `<div class="score-bar-row"><div class="score-bar-head"><b>${escapeHtml(t)}</b><span style="color:${colorForScore(avg)}">${Math.round(avg)}%</span></div><div class="score-bar-track"><div class="score-bar-fill" style="width:${avg}%;background:${colorForScore(avg)}"></div></div></div>`;
+        }).join('')
+      }
+    </div>
+    <div class="section-title"><span class="dot"></span>Detalle</div>
+    ${filtradas.map(e=>`
+      <div class="card walk-card" data-id="${e.id}">
+        <div class="info"><div class="maquina">${escapeHtml(e.turno)} · ${fmtDate(e.fecha)}</div><div class="meta">${escapeHtml(e.areaNombre||e.maquinaNombre||'')} · ${escapeHtml(e.responsable||'')}</div></div>
+        <div class="gauge-num" style="color:${colorForScore(e.cumplePct)}">${e.cumplePct===null||e.cumplePct===undefined?'–':Math.round(e.cumplePct)}%</div>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('ti-volver').addEventListener('click', ()=>{ turnoSubView='lista'; renderTurno(); });
+  document.getElementById('ti-desde').addEventListener('change', e=>{ turnoInformeDesde=e.target.value; renderTurno(); });
+  document.getElementById('ti-hasta').addEventListener('change', e=>{ turnoInformeHasta=e.target.value; renderTurno(); });
+  body.querySelectorAll('.walk-card').forEach(el=>{
+    el.addEventListener('click', ()=>{ turnoDetalleId=el.dataset.id; turnoSubView='detalle'; renderTurno(); });
+  });
+}
+</script>
+</body>
+</html>
