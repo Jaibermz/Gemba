@@ -473,6 +473,16 @@ nav.bottom{
     <div id="ajustes-body"></div>
   </div>
 
+  <!-- TPM -->
+  <div class="view" id="view-tpm">
+    <div id="tpm-body"></div>
+  </div>
+
+  <!-- ENTREGA DE TURNO -->
+  <div class="view" id="view-turno">
+    <div id="turno-body"></div>
+  </div>
+
 </div>
 
 <nav class="bottom">
@@ -481,9 +491,17 @@ nav.bottom{
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
       Inicio
     </button>
+    <button class="nav-btn" data-tab="view-tpm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+      TPM
+    </button>
     <button class="nav-btn" data-tab="__nuevo">
       <span class="nav-fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg></span>
       Nuevo
+    </button>
+    <button class="nav-btn" data-tab="view-turno">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      Turno
     </button>
     <button class="nav-btn" data-tab="view-informes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
@@ -695,7 +713,97 @@ const Store = {
   async contarUsuariosDeEmpresa(empresaId){
     const {count} = await sb.from('perfiles').select('id', {count:'exact', head:true}).eq('empresa_id', empresaId).eq('rol','usuario');
     return count||0;
-  }
+  },
+
+  /* ---- Certificación TPM ---- */
+  async getTpmVariables(){
+    const {data} = await sb.from('tpm_variables').select('*').eq('empresa_id', currentEmpresaId).order('orden').order('nombre');
+    return (data||[]).map(v=>({id:v.id, nombre:v.nombre, criterio:v.criterio||''}));
+  },
+  async saveTpmVariables(list){
+    await sb.from('tpm_variables').delete().eq('empresa_id', currentEmpresaId);
+    const rows = list.map((v,i)=>({id:v.id||uid(), empresa_id:currentEmpresaId, nombre:v.nombre, criterio:v.criterio||null, orden:i}));
+    if(rows.length) await sb.from('tpm_variables').insert(rows);
+  },
+  async getTpmCertificaciones(){
+    const {data} = await sb.from('tpm_certificaciones').select('*').eq('empresa_id', currentEmpresaId).order('fecha', {ascending:false});
+    return (data||[]).map(c=>({id:c.id, areaId:c.area_id, areaNombre:c.area_nombre, maquinaId:c.maquina_id, maquinaNombre:c.maquina_nombre, procesoProductivo:c.proceso_productivo||'', fecha:c.fecha, responsable:c.responsable_nombre, score:c.score, notas:c.notas||'', creadoEn:new Date(c.creado_en).getTime()}));
+  },
+  async getTpmCertificacion(id){
+    const {data:c, error} = await sb.from('tpm_certificaciones').select('*').eq('id', id).single();
+    if(error || !c) return null;
+    const {data:itemRows} = await sb.from('tpm_certificacion_items').select('*').eq('certificacion_id', id);
+    return {
+      id:c.id, areaId:c.area_id, areaNombre:c.area_nombre, maquinaId:c.maquina_id, maquinaNombre:c.maquina_nombre,
+      procesoProductivo:c.proceso_productivo||'', fecha:c.fecha, responsable:c.responsable_nombre, score:c.score, notas:c.notas||'',
+      creadoEn:new Date(c.creado_en).getTime(),
+      items:(itemRows||[]).map(r=>({id:r.id, variableId:r.variable_id, nombre:r.nombre, puntaje:r.puntaje, observacion:r.observacion||'', foto:r.foto_url?{data:r.foto_url, nombre:r.foto_nombre||''}:null}))
+    };
+  },
+  async saveTpmCertificacion(cert){
+    for(const it of cert.items){
+      if(it.foto && it.foto.data && it.foto.data.startsWith('data:')){ it.foto.data = await uploadFotoDataUrl(it.foto.data, it.foto.nombre||'foto'); }
+    }
+    const row = {
+      id: cert.id, empresa_id: currentEmpresaId, area_id: cert.areaId||null, area_nombre: cert.areaNombre||null,
+      maquina_id: cert.maquinaId||null, maquina_nombre: cert.maquinaNombre||null, proceso_productivo: cert.procesoProductivo||null,
+      fecha: cert.fecha, responsable_id: currentUsuario?currentUsuario.id:null, responsable_nombre: cert.responsable||null,
+      score: cert.score, notas: cert.notas||null
+    };
+    const {error} = await sb.from('tpm_certificaciones').upsert(row);
+    if(error) throw error;
+    await sb.from('tpm_certificacion_items').delete().eq('certificacion_id', cert.id);
+    const itemRows = cert.items.map(it=>({id:it.id, certificacion_id:cert.id, variable_id:it.variableId||null, nombre:it.nombre, puntaje:it.puntaje, observacion:it.observacion||null, foto_url:it.foto?it.foto.data:null, foto_nombre:it.foto?it.foto.nombre:null}));
+    if(itemRows.length){ const {error:e2} = await sb.from('tpm_certificacion_items').insert(itemRows); if(e2) throw e2; }
+  },
+  async deleteTpmCertificacion(id){ await sb.from('tpm_certificaciones').delete().eq('id', id); },
+
+  /* ---- Entrega de turno ---- */
+  async getTurnoVariables(){
+    const {data} = await sb.from('turno_variables').select('*').eq('empresa_id', currentEmpresaId).order('orden').order('nombre');
+    return (data||[]).map(v=>({id:v.id, nombre:v.nombre}));
+  },
+  async saveTurnoVariables(list){
+    await sb.from('turno_variables').delete().eq('empresa_id', currentEmpresaId);
+    const rows = list.map((v,i)=>({id:v.id||uid(), empresa_id:currentEmpresaId, nombre:v.nombre, orden:i}));
+    if(rows.length) await sb.from('turno_variables').insert(rows);
+  },
+  async saveTurnosConfig(list){
+    await sb.from('empresas').update({turnos: list}).eq('id', currentEmpresaId);
+    currentEmpresa.turnos = list;
+  },
+  async getEntregasTurno(){
+    const {data} = await sb.from('entregas_turno').select('*').eq('empresa_id', currentEmpresaId).order('fecha', {ascending:false});
+    return (data||[]).map(e=>({id:e.id, areaId:e.area_id, areaNombre:e.area_nombre, maquinaId:e.maquina_id, maquinaNombre:e.maquina_nombre, turno:e.turno, fecha:e.fecha, responsable:e.responsable_nombre, cumplePct:e.cumple_pct, novedades:e.novedades||'', creadoEn:new Date(e.creado_en).getTime()}));
+  },
+  async getEntregaTurno(id){
+    const {data:e, error} = await sb.from('entregas_turno').select('*').eq('id', id).single();
+    if(error || !e) return null;
+    const {data:itemRows} = await sb.from('entrega_turno_items').select('*').eq('entrega_id', id);
+    return {
+      id:e.id, areaId:e.area_id, areaNombre:e.area_nombre, maquinaId:e.maquina_id, maquinaNombre:e.maquina_nombre,
+      turno:e.turno, fecha:e.fecha, responsable:e.responsable_nombre, cumplePct:e.cumple_pct, novedades:e.novedades||'',
+      creadoEn:new Date(e.creado_en).getTime(),
+      items:(itemRows||[]).map(r=>({id:r.id, variableId:r.variable_id, nombre:r.nombre, cumple:r.cumple, observacion:r.observacion||'', foto:r.foto_url?{data:r.foto_url, nombre:r.foto_nombre||''}:null}))
+    };
+  },
+  async saveEntregaTurno(ent){
+    for(const it of ent.items){
+      if(it.foto && it.foto.data && it.foto.data.startsWith('data:')){ it.foto.data = await uploadFotoDataUrl(it.foto.data, it.foto.nombre||'foto'); }
+    }
+    const row = {
+      id: ent.id, empresa_id: currentEmpresaId, area_id: ent.areaId||null, area_nombre: ent.areaNombre||null,
+      maquina_id: ent.maquinaId||null, maquina_nombre: ent.maquinaNombre||null, turno: ent.turno, fecha: ent.fecha,
+      responsable_id: currentUsuario?currentUsuario.id:null, responsable_nombre: ent.responsable||null,
+      cumple_pct: ent.cumplePct, novedades: ent.novedades||null
+    };
+    const {error} = await sb.from('entregas_turno').upsert(row);
+    if(error) throw error;
+    await sb.from('entrega_turno_items').delete().eq('entrega_id', ent.id);
+    const itemRows = ent.items.map(it=>({id:it.id, entrega_id:ent.id, variable_id:it.variableId||null, nombre:it.nombre, cumple:it.cumple, observacion:it.observacion||null, foto_url:it.foto?it.foto.data:null, foto_nombre:it.foto?it.foto.nombre:null}));
+    if(itemRows.length){ const {error:e2} = await sb.from('entrega_turno_items').insert(itemRows); if(e2) throw e2; }
+  },
+  async deleteEntregaTurno(id){ await sb.from('entregas_turno').delete().eq('id', id); }
 };
 
 /* ============ APP STATE ============ */
@@ -711,6 +819,14 @@ let currentUsuario = null; // {id,nombre,rol,empresaId,activo,debeCambiarClave}
 let currentEmpresa = null; // {id,nombre,logo,limiteUsuarios,fechaVencimiento}
 let currentTab = 'view-home';
 const STEPS = ['Config','Seguridad','Calidad','Centerline','5S y LILA','TPM','Observaciones','Cierre'];
+
+/* ---- estado módulos TPM / Entrega de turno ---- */
+let tpmSubView = 'lista'; // 'lista' | 'nueva' | 'detalle'
+let tpmForm = null;
+let tpmDetalleId = null;
+let turnoSubView = 'lista'; // 'lista' | 'nueva' | 'detalle' | 'informe'
+let turnoForm = null;
+let turnoDetalleId = null;
 
 /* ============ INIT / AUTH ============ */
 async function init(){
@@ -746,7 +862,7 @@ async function afterLogin(){
   }
   currentEmpresaId = currentUsuario.empresaId;
   const {data:empresaRow} = await sb.from('empresas').select('*').eq('id', currentEmpresaId).single();
-  currentEmpresa = empresaRow ? {id:empresaRow.id, nombre:empresaRow.nombre, logo:empresaRow.logo_url, limiteUsuarios:empresaRow.limite_usuarios, fechaVencimiento:empresaRow.fecha_vencimiento} : {id:currentEmpresaId, nombre:'Empresa', logo:null};
+  currentEmpresa = empresaRow ? {id:empresaRow.id, nombre:empresaRow.nombre, logo:empresaRow.logo_url, limiteUsuarios:empresaRow.limite_usuarios, fechaVencimiento:empresaRow.fecha_vencimiento, turnos:empresaRow.turnos||['Mañana','Tarde','Noche']} : {id:currentEmpresaId, nombre:'Empresa', logo:null, turnos:['Mañana','Tarde','Noche']};
   const mem = estadoMembresia(currentEmpresa);
   if(mem.estado==='vencida'){
     document.getElementById('mv-info').textContent = `La membresía de ${currentEmpresa.nombre} venció hace ${Math.abs(mem.dias)} día(s) (${fmtDate(currentEmpresa.fechaVencimiento)}). Contacta al creador para renovarla.`;
@@ -800,7 +916,7 @@ function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo({top:0,behavior:'instant'});
-  if(id==='view-home' || id==='view-informes' || id==='view-ajustes'){
+  if(id==='view-home' || id==='view-informes' || id==='view-ajustes' || id==='view-tpm' || id==='view-turno'){
     currentTab = id;
   }else if(id==='view-nuevo'){
     currentTab = '__nuevo';
@@ -819,6 +935,8 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(tab==='view-home'){ renderFilters(); renderHome(); }
     if(tab==='view-informes'){ renderInformes(); }
     if(tab==='view-ajustes'){ renderAjustes(); }
+    if(tab==='view-tpm'){ tpmSubView='lista'; renderTpm(); }
+    if(tab==='view-turno'){ turnoSubView='lista'; renderTurno(); }
     showView(tab);
   });
 });
@@ -1946,6 +2064,9 @@ async function renderAjustes(){
   const misUsuarios = isAdmin ? await Store.getUsuariosDeEmpresa(currentEmpresaId) : [];
   const cupoUsuarios = currentEmpresa?.limiteUsuarios ?? '∞';
   const cupoAlcanzado = typeof cupoUsuarios==='number' && misUsuarios.length>=cupoUsuarios;
+  const tpmVars = isAdmin ? await Store.getTpmVariables() : [];
+  const turnoVars = isAdmin ? await Store.getTurnoVariables() : [];
+  const turnosList = (currentEmpresa && currentEmpresa.turnos) || ['Mañana','Tarde','Noche'];
   const mem = estadoMembresia(currentEmpresa);
   const memTxt = mem.estado==='sin_limite' ? ''
     : mem.estado==='por_vencer' ? `<br><span style="color:var(--warning);">Membresía vence en ${mem.dias} día(s)</span>`
@@ -2022,6 +2143,44 @@ TPM | Nivel de aceite dentro de rango"></textarea>
       <button class="btn btn-accent btn-block" id="bulk-variables-save">⇈ Cargar variables</button>
       <div id="bulk-variables-resumen" class="hint" style="margin-top:12px;">Variables activas — ${CATLABEL_KEYS.map(k=>`${CATLABEL[k]}: ${(templates[k]||[]).length}`).join(' · ')}</div>
     </div>
+
+    <div class="card settings-card">
+      <h3>🧰 Variables de certificación TPM</h3>
+      <p class="desc">Estas son las variables que se piden calificar (0-100%) en cada certificación TPM.</p>
+      ${tpmVars.length?tpmVars.map(v=>`
+        <div class="data-row">
+          <div class="dr-info"><div class="dr-name">${escapeHtml(v.nombre)}</div>${v.criterio?`<div class="dr-sub">${escapeHtml(v.criterio)}</div>`:''}</div>
+          <button class="btn btn-sm btn-ghost" data-id="${v.id}" data-action="rm-tpmvar">Quitar</button>
+        </div>
+      `).join(''):'<div class="hint" style="margin-top:0;">Aún no has definido variables de TPM.</div>'}
+      <div class="row2" style="margin-top:10px;">
+        <div class="field"><label>Nombre de la variable</label><input type="text" id="tpmvar-nombre" placeholder="Ej. Nivel de lubricación"></div>
+        <div class="field"><label>Criterio esperado (opcional)</label><input type="text" id="tpmvar-criterio" placeholder="Ej. Entre marca MIN y MAX"></div>
+      </div>
+      <button class="btn btn-accent btn-block" id="tpmvar-add">+ Agregar variable de TPM</button>
+    </div>
+
+    <div class="card settings-card">
+      <h3>🔄 Variables y turnos de entrega de turno</h3>
+      <p class="desc">Estas variables se controlan por Cumple / No cumple en cada entrega de turno.</p>
+      ${turnoVars.length?turnoVars.map(v=>`
+        <div class="data-row">
+          <div class="dr-info"><div class="dr-name">${escapeHtml(v.nombre)}</div></div>
+          <button class="btn btn-sm btn-ghost" data-id="${v.id}" data-action="rm-turnovar">Quitar</button>
+        </div>
+      `).join(''):'<div class="hint" style="margin-top:0;">Aún no has definido variables de entrega de turno.</div>'}
+      <div class="field" style="margin-top:10px;"><label>Nueva variable</label><input type="text" id="turnovar-nombre" placeholder="Ej. Producción del turno reportada"></div>
+      <button class="btn btn-accent btn-block" id="turnovar-add">+ Agregar variable de turno</button>
+      <div style="height:6px;"></div>
+      <p class="desc">Nombres de turno disponibles al registrar una entrega:</p>
+      <div class="badges" style="margin-bottom:10px;">
+        ${turnosList.map(t=>`<span class="badge badge-muted">${escapeHtml(t)} <button data-turno="${escapeHtml(t)}" data-action="rm-turno" style="background:none;border:none;color:inherit;cursor:pointer;margin-left:4px;">×</button></span>`).join('')}
+      </div>
+      <div class="inline-add">
+        <input type="text" id="turno-nombre-nuevo" placeholder="Ej. Turno 4">
+        <button class="btn btn-sm btn-accent" id="turno-nombre-add">+ Agregar turno</button>
+      </div>
+    </div>
     `:''}
 
     <div class="card settings-card">
@@ -2087,6 +2246,56 @@ TPM | Nivel de aceite dentro de rango"></textarea>
         toast(err.message || 'No se pudo crear el usuario');
       }
       nuCreateBtn.disabled = false; nuCreateBtn.textContent = '+ Crear usuario';
+      renderAjustes();
+    });
+
+    document.querySelectorAll('[data-action="rm-tpmvar"]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const list = await Store.getTpmVariables();
+        await Store.saveTpmVariables(list.filter(v=>v.id!==btn.dataset.id));
+        renderAjustes();
+      });
+    });
+    document.getElementById('tpmvar-add').addEventListener('click', async ()=>{
+      const nombre = document.getElementById('tpmvar-nombre').value.trim();
+      const criterio = document.getElementById('tpmvar-criterio').value.trim();
+      if(!nombre){ toast('Escribe el nombre de la variable'); return; }
+      const list = await Store.getTpmVariables();
+      list.push({nombre, criterio});
+      await Store.saveTpmVariables(list);
+      toast('Variable de TPM agregada');
+      renderAjustes();
+    });
+
+    document.querySelectorAll('[data-action="rm-turnovar"]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const list = await Store.getTurnoVariables();
+        await Store.saveTurnoVariables(list.filter(v=>v.id!==btn.dataset.id));
+        renderAjustes();
+      });
+    });
+    document.getElementById('turnovar-add').addEventListener('click', async ()=>{
+      const nombre = document.getElementById('turnovar-nombre').value.trim();
+      if(!nombre){ toast('Escribe el nombre de la variable'); return; }
+      const list = await Store.getTurnoVariables();
+      list.push({nombre});
+      await Store.saveTurnoVariables(list);
+      toast('Variable de turno agregada');
+      renderAjustes();
+    });
+    document.querySelectorAll('[data-action="rm-turno"]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const actual = (currentEmpresa.turnos||[]).filter(t=>t!==btn.dataset.turno);
+        await Store.saveTurnosConfig(actual);
+        renderAjustes();
+      });
+    });
+    document.getElementById('turno-nombre-add').addEventListener('click', async ()=>{
+      const nombre = document.getElementById('turno-nombre-nuevo').value.trim();
+      if(!nombre){ toast('Escribe el nombre del turno'); return; }
+      const actual = [...(currentEmpresa.turnos||[]), nombre];
+      await Store.saveTurnosConfig(actual);
+      toast('Turno agregado');
       renderAjustes();
     });
 
@@ -2190,200 +2399,5 @@ async function descargarInformePPTX(rec){
   const btn = document.getElementById('btn-pptx');
   if(btn){ btn.disabled = true; btn.textContent = 'Generando…'; }
   try{
-    await loadPptxGenJS();
-    const PptxCtor = window.PptxGenJS;
-    const pres = new PptxCtor();
-    pres.layout = 'LAYOUT_16x9';
+    await loadPptxG
 
-    const NAVY='1A2B4C', COBALT='0A4F9E', ACCENT='76FF03', GREY='A0B0C0', LIGHT='F2F4F7', TEXT='1A2B4C', WHITE='FFFFFF';
-    const SEV_COLOR = {alta:'FF5C5C', media:'FFB703', baja:'3FB27F'};
-    const SEV_LABEL = {alta:'ALTA', media:'MEDIA', baja:'BAJA'};
-
-    /* ---- Portada ---- */
-    let s1 = pres.addSlide();
-    s1.background = {color: NAVY};
-    s1.addText('GEMBA APP', {x:0.5,y:0.5,w:4,h:0.35,fontFace:'Montserrat',fontSize:12,color:ACCENT,bold:true,charSpacing:2});
-    s1.addText('INFORME DE HALLAZGOS', {x:0.5,y:2.0,w:9,h:0.9,fontFace:'Montserrat',fontSize:32,color:WHITE,bold:true});
-    s1.addText([rec.areaNombre, rec.maquinaNombre, rec.zonaNombre].filter(Boolean).join(' · '), {x:0.5,y:2.9,w:9,h:0.4,fontFace:'Montserrat',fontSize:16,color:GREY});
-    s1.addText(`Recorrido del ${fmtDate(rec.fecha)}${rec.responsable?`  ·  Responsable: ${rec.responsable}`:''}`, {x:0.5,y:3.3,w:9,h:0.4,fontFace:'Montserrat',fontSize:13,color:GREY});
-    if(currentEmpresa?.nombre) s1.addText(currentEmpresa.nombre, {x:0.5,y:4.9,w:9,h:0.35,fontFace:'Montserrat',fontSize:12,color:'6FA8DC',bold:true});
-
-    /* ---- Resumen ---- */
-    const obs = rec.observaciones||[];
-    const positivos = obs.filter(o=>o.tipo==='positivo');
-    const oportunidades = obs.filter(o=>o.tipo==='oportunidad');
-    const porSeveridad = {alta:0,media:0,baja:0};
-    oportunidades.forEach(o=>{ if(porSeveridad[o.severidad]!==undefined) porSeveridad[o.severidad]++; });
-
-    let s2 = pres.addSlide();
-    s2.background = {color:WHITE};
-    s2.addShape(pres.ShapeType.rect, {x:0,y:0,w:10,h:0.9,fill:{color:NAVY}});
-    s2.addText('Resumen del recorrido', {x:0.4,y:0.2,w:8,h:0.5,fontFace:'Montserrat',fontSize:20,bold:true,color:WHITE});
-    const cards = [
-      {label:'Puntos positivos', value:positivos.length, color:'3FB27F'},
-      {label:'Oport. altas', value:porSeveridad.alta, color:SEV_COLOR.alta},
-      {label:'Oport. medias', value:porSeveridad.media, color:SEV_COLOR.media},
-      {label:'Oport. bajas', value:porSeveridad.baja, color:SEV_COLOR.baja},
-    ];
-    cards.forEach((c,i)=>{
-      const x = 0.5 + i*2.35;
-      s2.addShape(pres.ShapeType.roundRect, {x, y:1.4, w:2.1, h:1.5, rectRadius:0.08, fill:{color:LIGHT}, line:{color:'E2E6EC', width:1}});
-      s2.addText(String(c.value), {x, y:1.55, w:2.1, h:0.8, align:'center', fontFace:'Montserrat', fontSize:34, bold:true, color:c.color});
-      s2.addText(c.label, {x, y:2.35, w:2.1, h:0.4, align:'center', fontFace:'Montserrat', fontSize:11, color:TEXT});
-    });
-    if(rec.scores?.general!==null && rec.scores?.general!==undefined){
-      s2.addText(`Puntaje general del recorrido: ${Math.round(rec.scores.general)} / 100`, {x:0.5,y:3.25,w:9,h:0.4,fontFace:'Montserrat',fontSize:14,bold:true,color:NAVY});
-    }
-    if(rec.notasCierre){
-      s2.addText('Notas de cierre', {x:0.5,y:3.75,w:9,h:0.3,fontFace:'Montserrat',fontSize:12,bold:true,color:NAVY});
-      s2.addText(rec.notasCierre, {x:0.5,y:4.05,w:9,h:1.3,fontFace:'Montserrat',fontSize:11,color:TEXT,valign:'top'});
-    }
-
-    /* ---- Un slide por hallazgo: oportunidades (alta→media→baja) y luego positivos ---- */
-    const orden = {alta:0, media:1, baja:2};
-    const oportunidadesOrdenadas = [...oportunidades].sort((a,b)=>(orden[a.severidad]??3)-(orden[b.severidad]??3));
-    const hallazgos = [...oportunidadesOrdenadas, ...positivos];
-
-    hallazgos.forEach(o=>{
-      let s = pres.addSlide();
-      s.background = {color:WHITE};
-      const esOportunidad = o.tipo==='oportunidad';
-      const badgeColor = esOportunidad ? (SEV_COLOR[o.severidad]||GREY) : '3FB27F';
-      const badgeLabel = esOportunidad ? `OPORTUNIDAD · ${SEV_LABEL[o.severidad]||''}` : 'PUNTO POSITIVO';
-      const badgeTextColor = (esOportunidad && o.severidad==='media') ? NAVY : WHITE;
-
-      s.addShape(pres.ShapeType.rect, {x:0,y:0,w:10,h:0.9,fill:{color:NAVY}});
-      s.addText(o.categoria || (esOportunidad?'Oportunidad de mejora':'Punto positivo'), {x:0.4,y:0.12,w:6.5,h:0.5,fontFace:'Montserrat',fontSize:18,bold:true,color:WHITE});
-      s.addShape(pres.ShapeType.roundRect, {x:7.1,y:0.2,w:2.5,h:0.5,rectRadius:0.25,fill:{color:badgeColor}});
-      s.addText(badgeLabel, {x:7.1,y:0.2,w:2.5,h:0.5,align:'center',valign:'middle',fontFace:'Montserrat',fontSize:10,bold:true,color:badgeTextColor});
-
-      s.addText('ANTES', {x:0.4,y:1.05,w:4.3,h:0.3,fontFace:'Montserrat',fontSize:11,bold:true,color:COBALT,charSpacing:1});
-      if(o.foto?.data){
-        const esUrl = o.foto.data.startsWith('http');
-        s.addImage({[esUrl?'path':'data']:o.foto.data, x:0.4,y:1.4,w:4.3,h:3.0, sizing:{type:'cover', w:4.3, h:3.0}});
-        s.addShape(pres.ShapeType.rect, {x:0.4,y:1.4,w:4.3,h:3.0,fill:{type:'none'},line:{color:'E2E6EC',width:1}});
-      }else{
-        s.addShape(pres.ShapeType.rect, {x:0.4,y:1.4,w:4.3,h:3.0,fill:{color:LIGHT},line:{color:'E2E6EC',width:1}});
-        s.addText('Sin foto registrada', {x:0.4,y:1.4,w:4.3,h:3.0,align:'center',valign:'middle',fontFace:'Montserrat',fontSize:11,color:GREY});
-      }
-
-      s.addText('DESPUÉS', {x:5.3,y:1.05,w:4.3,h:0.3,fontFace:'Montserrat',fontSize:11,bold:true,color:GREY,charSpacing:1});
-      s.addShape(pres.ShapeType.rect, {x:5.3,y:1.4,w:4.3,h:3.0,fill:{color:'FAFBFC'},line:{color:GREY,width:1,dashType:'dash'}});
-      s.addText('Espacio para la foto de seguimiento / verificación', {x:5.6,y:2.6,w:3.7,h:0.7,align:'center',valign:'middle',fontFace:'Montserrat',fontSize:10,color:GREY,italic:true});
-
-      s.addText('Comentarios', {x:0.4,y:4.55,w:9,h:0.28,fontFace:'Montserrat',fontSize:11,bold:true,color:NAVY});
-      s.addText(o.descripcion||'(sin comentarios)', {x:0.4,y:4.83,w:9,h:0.65,fontFace:'Montserrat',fontSize:10.5,color:TEXT,valign:'top'});
-    });
-
-    const nombreArchivo = `Informe-Hallazgos-${slugify(rec.maquinaNombre||'recorrido')}-${rec.fecha}.pptx`;
-    await pres.writeFile({fileName: nombreArchivo});
-    toast('PowerPoint descargado');
-  }catch(err){
-    toast(err.message || 'No se pudo generar el PowerPoint');
-  }finally{
-    if(btn){ btn.disabled = false; btn.textContent = '📊 PowerPoint'; }
-  }
-}
-
-/* ============ PANEL CREADOR ============ */
-async function renderCreadorPanel(){
-  const body = document.getElementById('creador-body');
-  const admins = await Store.getAdministradores();
-  const usadosPorEmpresa = {};
-  await Promise.all([...new Set(admins.map(a=>a.empresaId))].filter(Boolean).map(async eid=>{
-    usadosPorEmpresa[eid] = await Store.contarUsuariosDeEmpresa(eid);
-  }));
-  body.innerHTML = `
-    <div class="hint" style="margin-top:0;">Solo tú puedes habilitar administradores. Cada administrador queda asociado a una empresa cliente, con un cupo de usuarios y un tiempo de membresía que tú defines.</div>
-
-    <div class="section-title"><span class="dot"></span>Empresas y administradores</div>
-    <div class="card">
-      ${admins.length?admins.map(a=>{
-        const emp = a.empresa;
-        const empresaObj = emp ? {fechaVencimiento: emp.fecha_vencimiento} : null;
-        const usados = usadosPorEmpresa[a.empresaId]||0;
-        const cupo = emp?.limite_usuarios ?? '∞';
-        const mem = estadoMembresia(empresaObj);
-        const memTxt = mem.estado==='sin_limite'?'sin fecha límite'
-          : mem.estado==='vencida'?`<span style="color:var(--danger);font-weight:700;">vencida hace ${Math.abs(mem.dias)} d.</span>`
-          : mem.estado==='por_vencer'?`<span style="color:var(--warning);font-weight:700;">vence en ${mem.dias} d.</span>`
-          : `vence el ${emp?fmtDate(emp.fecha_vencimiento):''}`;
-        return `<div class="data-row" style="flex-wrap:wrap;">
-          <div class="dr-info"><div class="dr-name">${escapeHtml(emp?emp.nombre:'(empresa)')}</div><div class="dr-sub">admin: ${escapeHtml(a.nombre)} · usuario: ${escapeHtml(a.usuario)} · ${a.activo?'activo':'inactivo'} · usuarios: ${usados}/${cupo}</div><div class="dr-sub">membresía: ${memTxt}</div></div>
-          <button class="btn btn-sm ${a.activo?'btn-ghost':'btn-accent'}" data-uid="${a.id}" data-activo="${a.activo}" data-action="toggle-admin">${a.activo?'Desactivar':'Activar'}</button>
-          <div class="inline-add" style="width:100%;margin-top:8px;">
-            <input type="number" min="1" value="30" class="renovar-dias" data-empresa="${emp?.id||''}" style="max-width:90px;">
-            <button class="btn btn-sm btn-accent" data-action="renovar" data-empresa="${emp?.id||''}" data-vencimiento="${emp?.fecha_vencimiento||''}">Renovar (+días)</button>
-          </div>
-        </div>`;
-      }).join(''):'<div class="hint" style="margin-top:0;">Aún no has creado administradores.</div>'}
-    </div>
-
-    <div class="section-title"><span class="dot"></span>Crear administrador para una empresa cliente</div>
-    <div class="card settings-card">
-      <div class="field"><label>Nombre de la empresa cliente</label><input type="text" id="ca-empresa" placeholder="Ej. Textiles del Valle S.A.S."></div>
-      <div class="field"><label>Cupo de usuarios que este administrador podrá crear</label><input type="number" id="ca-max-usuarios" min="1" value="5"></div>
-      <div class="field"><label>Duración de la membresía (días)</label><input type="number" id="ca-dias-membresia" min="1" value="365"></div>
-      <div class="field"><label>Nombre del administrador</label><input type="text" id="ca-nombre" placeholder="Ej. María Gómez"></div>
-      <div class="row2">
-        <div class="field"><label>Usuario</label><input type="text" id="ca-usuario" placeholder="Ej. mgomez"></div>
-        <div class="field"><label>Contraseña inicial</label><input type="password" id="ca-pass" placeholder="Mínimo 6 caracteres"></div>
-      </div>
-      <div class="hint" style="margin-top:0;">Esta contraseña es temporal — el administrador deberá cambiarla al iniciar sesión por primera vez. Cuando la membresía vence, el administrador y sus usuarios quedan bloqueados hasta que la renueves aquí.</div>
-      <button class="btn btn-accent btn-block" id="ca-create">+ Crear administrador</button>
-    </div>
-  `;
-
-  document.querySelectorAll('[data-action="toggle-admin"]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const nuevoEstado = btn.dataset.activo !== 'true';
-      await sb.from('perfiles').update({activo: nuevoEstado}).eq('id', btn.dataset.uid);
-      renderCreadorPanel();
-    });
-  });
-
-  document.querySelectorAll('[data-action="renovar"]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const empId = btn.dataset.empresa;
-      if(!empId) return;
-      const diasInput = document.querySelector(`.renovar-dias[data-empresa="${empId}"]`);
-      const dias = parseInt(diasInput.value) || 30;
-      const vencActual = btn.dataset.vencimiento;
-      const base = (vencActual && vencActual >= todayISO()) ? new Date(vencActual+'T00:00:00') : new Date();
-      base.setDate(base.getDate() + dias);
-      const nuevaFecha = base.toISOString().slice(0,10);
-      await sb.from('empresas').update({fecha_vencimiento: nuevaFecha}).eq('id', empId);
-      toast(`Membresía renovada hasta el ${fmtDate(nuevaFecha)}`);
-      renderCreadorPanel();
-    });
-  });
-
-  document.getElementById('ca-create').addEventListener('click', async function(){
-    const btn = this;
-    const empresaNombre = document.getElementById('ca-empresa').value.trim();
-    const maxUsuarios = parseInt(document.getElementById('ca-max-usuarios').value) || 1;
-    const diasMembresia = parseInt(document.getElementById('ca-dias-membresia').value) || 365;
-    const nombre = document.getElementById('ca-nombre').value.trim();
-    const login = document.getElementById('ca-usuario').value.trim().toLowerCase();
-    const pass = document.getElementById('ca-pass').value;
-    if(!empresaNombre||!nombre||!login||!pass){ toast('Completa todos los campos'); return; }
-    if(pass.length<6){ toast('La contraseña debe tener al menos 6 caracteres'); return; }
-    btn.disabled = true; btn.textContent = 'Creando…';
-    try{
-      const vencimiento = new Date(); vencimiento.setDate(vencimiento.getDate() + diasMembresia);
-      const {data:empresaRow, error:eerr} = await sb.from('empresas').insert({
-        nombre: empresaNombre, limite_usuarios: maxUsuarios, fecha_vencimiento: vencimiento.toISOString().slice(0,10)
-      }).select().single();
-      if(eerr) throw eerr;
-      await crearCuenta({nombre, handleOrEmail:login, rol:'administrador', empresaId: empresaRow.id, tempPass: pass});
-      toast('Administrador creado');
-    }catch(err){
-      toast(err.message || 'No se pudo crear el administrador');
-    }
-    btn.disabled = false; btn.textContent = '+ Crear administrador';
-    renderCreadorPanel();
-  });
-}
-</script>
-</body>
-</html>
