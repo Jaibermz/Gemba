@@ -6,9 +6,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="GEMBA APP">
+<meta name="apple-mobile-web-app-title" content="Datos de Piso de Planta">
 <meta name="theme-color" content="#111c31">
-<title>GEMBA APP · MT Performance Solutions</title>
+<title>Herramienta Datos de Piso de Planta · MT Performance Solutions</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -181,6 +181,13 @@ textarea{resize:vertical;min-height:64px;line-height:1.4;}
   color:var(--text-muted);font-size:13px;font-weight:700;text-align:center;transition:.15s;
 }
 .scale-btn.sel{background:var(--success-dim);border-color:var(--accent);color:var(--accent);}
+.tabs-row{display:flex;gap:6px;margin-bottom:14px;}
+.tab-btn{flex:1;padding:9px 4px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:13px;font-weight:700;text-align:center;transition:.15s;}
+.tab-btn.active{background:var(--success-dim);border-color:var(--accent);color:var(--accent);}
+.matriz-table{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap;}
+.matriz-table th,.matriz-table td{padding:7px 10px;border-bottom:1px solid var(--border-soft);text-align:center;}
+.matriz-table th:first-child,.matriz-table td:first-child{text-align:left;white-space:normal;max-width:140px;}
+.matriz-table th{color:var(--text-muted);font-weight:700;font-size:11.5px;}
 .portada-card{display:flex;align-items:center;gap:14px;cursor:pointer;transition:.15s;}
 .portada-card:active{transform:scale(0.98);background:var(--surface-2);}
 .portada-icon{font-size:32px;flex-shrink:0;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:14px;}
@@ -362,7 +369,7 @@ nav.bottom{
       <div class="brand-mark" id="brand-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="#0d1a08" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-7h6v7"/></svg>
       </div>
-      <div class="brand-text"><b id="brand-name">GEMBA</b><span id="brand-sub">Recorridos de planta</span></div>
+      <div class="brand-text"><b id="brand-name">Datos de Piso de Planta</b><span id="brand-sub">MT Performance Solutions</span></div>
     </div>
   </div>
 </header>
@@ -375,7 +382,7 @@ nav.bottom{
       <div class="onboard-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="#0d1a08" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9"/></svg>
       </div>
-      <div class="app-wordmark">GEMBA APP</div>
+      <div class="app-wordmark">Datos de Piso de Planta</div>
       <h1>Configura la cuenta Creador</h1>
       <p class="sub">Esta cuenta es la única que puede habilitar administradores para cada empresa cliente. Guárdala en un lugar seguro.</p>
       <div class="field"><label>Tu nombre</label><input type="text" id="sc-nombre" placeholder="Ej. Jaiber Muñoz"></div>
@@ -396,7 +403,7 @@ nav.bottom{
       <div class="onboard-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="#0d1a08" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-7h6v7"/></svg>
       </div>
-      <div class="app-wordmark">GEMBA APP</div>
+      <div class="app-wordmark">Datos de Piso de Planta</div>
       <h1>Inicia sesión</h1>
       <p class="sub">Ingresa con tu usuario y contraseña.</p>
       <div class="field"><label>Usuario</label><input type="text" id="login-usuario" autocapitalize="off"></div>
@@ -430,7 +437,7 @@ nav.bottom{
       <div class="onboard-mark" style="background:linear-gradient(155deg, var(--danger), #a52f2f);box-shadow:0 0 0 1px rgba(255,92,92,0.25), 0 10px 30px -8px rgba(255,92,92,0.5);">
         <svg viewBox="0 0 24 24" fill="none" stroke="#1a0505" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
       </div>
-      <div class="app-wordmark">GEMBA APP</div>
+      <div class="app-wordmark">Datos de Piso de Planta</div>
       <h1>Membresía vencida</h1>
       <p class="sub" id="mv-info">La suscripción de esta empresa venció. Contacta al creador para renovarla.</p>
       <button class="btn btn-ghost btn-block btn-logout">Cerrar sesión</button>
@@ -465,6 +472,7 @@ nav.bottom{
 
   <!-- HOME -->
   <div class="view" id="view-home">
+    <button class="btn btn-accent btn-block" id="home-nuevo-btn" style="margin-bottom:14px;">+ Nuevo recorrido Gemba</button>
     <div id="home-stats"></div>
     <div class="filters" style="margin-top:14px;">
       <select id="filter-area"><option value="">Todas las áreas</option></select>
@@ -491,6 +499,11 @@ nav.bottom{
   <!-- INFORMES -->
   <div class="view" id="view-informes">
     <div class="section-title" style="margin-top:4px;"><span class="dot"></span>📊 Informes</div>
+    <div class="tabs-row" id="informes-tabs">
+      <button class="tab-btn" data-sub="gemba">🚶 Gemba</button>
+      <button class="tab-btn" data-sub="tpm">🧰 Validación</button>
+      <button class="tab-btn" data-sub="turno">🔄 Turno</button>
+    </div>
     <div id="informes-body"></div>
   </div>
 
@@ -522,9 +535,9 @@ nav.bottom{
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
       Validación
     </button>
-    <button class="nav-btn" data-tab="__nuevo">
-      <span class="nav-fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg></span>
-      Nuevo
+    <button class="nav-btn" data-tab="view-home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.6"/><path d="M12 8v5l-2.5 6M12 13l3 2 3-1.5M9.5 11l-3.5 1.5"/></svg>
+      Gemba
     </button>
     <button class="nav-btn" data-tab="view-turno">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
@@ -942,9 +955,9 @@ document.getElementById('portada-turno').addEventListener('click', ()=>{
 });
 
 function renderBrand(){
-  const nombre = currentEmpresa ? currentEmpresa.nombre : 'GEMBA APP';
-  document.getElementById('brand-name').textContent = nombre || 'GEMBA APP';
-  document.getElementById('brand-sub').textContent = currentEmpresa ? 'GEMBA APP · Recorridos de planta' : 'Recorridos de planta';
+  const nombre = currentEmpresa ? currentEmpresa.nombre : 'Datos de Piso de Planta';
+  document.getElementById('brand-name').textContent = nombre || 'Datos de Piso de Planta';
+  document.getElementById('brand-sub').textContent = currentEmpresa ? 'Herramienta Datos de Piso de Planta' : 'MT Performance Solutions';
   const mark = document.getElementById('brand-mark');
   if(currentEmpresa && currentEmpresa.logo){
     mark.innerHTML = `<img src="${currentEmpresa.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
@@ -967,6 +980,7 @@ function showView(id){
   document.querySelectorAll('.nav-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===currentTab));
   document.querySelector('nav.bottom').style.display = NAV_HIDDEN_VIEWS.includes(id) ? 'none' : 'flex';
 }
+document.getElementById('home-nuevo-btn').addEventListener('click', startWizard);
 document.getElementById('btn-back-home').addEventListener('click', async ()=>{
   indexList = await Store.getIndex();
   renderFilters(); renderHome(); showView('view-home');
@@ -974,7 +988,6 @@ document.getElementById('btn-back-home').addEventListener('click', async ()=>{
 document.querySelectorAll('.nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const tab = btn.dataset.tab;
-    if(tab==='__nuevo'){ startWizard(); return; }
     if(tab==='view-home'){ renderFilters(); renderHome(); }
     if(tab==='view-portada'){ /* nada que cargar, es estática */ }
     if(tab==='view-informes'){ renderInformes(); }
@@ -2010,8 +2023,61 @@ async function buscarEntidad(q){
   return out.trim();
 }
 
+function buildMatrizVariables(rows){
+  const porItem = {};
+  rows.forEach(r=>{
+    if(!r.maquina) return;
+    if(!porItem[r.item]) porItem[r.item] = {};
+    if(!porItem[r.item][r.maquina]) porItem[r.item][r.maquina] = [];
+    porItem[r.item][r.maquina].push(r.valor);
+  });
+  const maquinas = Array.from(new Set(rows.filter(r=>r.maquina).map(r=>r.maquina))).sort();
+  const items = Object.keys(porItem).map(item=>{
+    const porMaquina = maquinas.map(m=>{
+      const vals = porItem[item][m];
+      return vals && vals.length ? vals.reduce((a,v)=>a+v,0)/vals.length : null;
+    });
+    const todos = Object.values(porItem[item]).flat();
+    const promedioGeneral = todos.length ? todos.reduce((a,v)=>a+v,0)/todos.length : null;
+    return {item, porMaquina, promedioGeneral};
+  });
+  items.sort((a,b)=> (a.promedioGeneral??999) - (b.promedioGeneral??999));
+  return {maquinas, items};
+}
+function matrizHtml(matriz, maxRows=15){
+  if(!matriz.items.length) return '<div class="hint" style="margin-top:0;">No hay datos suficientes en este rango.</div>';
+  const filas = matriz.items.slice(0, maxRows);
+  return `<div style="overflow-x:auto;"><table class="matriz-table">
+    <thead><tr><th>Variable</th>${matriz.maquinas.map(m=>`<th>${escapeHtml(m)}</th>`).join('')}<th>Prom.</th></tr></thead>
+    <tbody>
+      ${filas.map(f=>`<tr>
+        <td>${escapeHtml(f.item)}</td>
+        ${f.porMaquina.map(v=>`<td style="color:${colorForScore(v)}">${v===null?'–':Math.round(v)}</td>`).join('')}
+        <td style="font-weight:700;color:${colorForScore(f.promedioGeneral)}">${f.promedioGeneral===null?'–':Math.round(f.promedioGeneral)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>
+  ${matriz.items.length>maxRows?`<div class="hint">Mostrando las ${maxRows} variables con menor cumplimiento de ${matriz.items.length} en total.</div>`:''}`;
+}
+function paretoHtml(matriz, maxRows=8){
+  const filas = matriz.items.slice(0, maxRows);
+  if(!filas.length) return '<div class="hint" style="margin-top:0;">No hay datos suficientes.</div>';
+  return filas.map(f=>`<div class="score-bar-row"><div class="score-bar-head"><b>${escapeHtml(f.item)}</b><span style="color:${colorForScore(f.promedioGeneral)}">${f.promedioGeneral===null?'–':Math.round(f.promedioGeneral)}</span></div><div class="score-bar-track"><div class="score-bar-fill" style="width:${f.promedioGeneral||0}%;background:${colorForScore(f.promedioGeneral)}"></div></div></div>`).join('');
+}
+
+let informesSubView = 'gemba';
 async function renderInformes(){
+  document.querySelectorAll('#informes-tabs .tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.sub===informesSubView));
   const body = document.getElementById('informes-body');
+  if(informesSubView==='tpm'){ await renderInformesTpm(body); return; }
+  if(informesSubView==='turno'){ await renderInformesTurno(body); return; }
+  await renderInformesGemba(body);
+}
+document.querySelectorAll('#informes-tabs .tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ informesSubView = btn.dataset.sub; renderInformes(); });
+});
+
+async function renderInformesGemba(body){
   const areaOpts = catalog.areas.map(a=>`<option value="${a.id}">${escapeHtml(a.nombre)}</option>`).join('');
   const maquinasAll = catalog.areas.flatMap(a=>a.maquinas);
   const maqOpts = maquinasAll.map(m=>`<option value="${m.id}">${escapeHtml(m.nombre)}</option>`).join('');
@@ -2042,6 +2108,13 @@ async function renderInformes(){
     <div class="section-title"><span class="dot"></span>📈 Comportamiento por máquina</div>
     <div class="hint" style="margin-top:0;">Ordenadas de la más crítica a la mejor. La línea muestra la evolución del puntaje general en el tiempo — <b style="color:var(--text)">úsala para ver si una máquina está mejorando o empeorando</b>. Cuando compares varias máquinas entre sí, la barra de arriba (puntaje más reciente) es la más rápida de leer; para el detalle de una sola máquina en el tiempo, la línea es mejor que la barra.</div>
     <div id="inf-maquinas"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+
+    <div class="section-title"><span class="dot"></span>🧮 Variables por máquina</div>
+    <div class="hint" style="margin-top:0;">Cumplimiento promedio (%) de cada ítem del checklist, por máquina, en el rango de fechas filtrado.</div>
+    <div class="card" id="inf-matriz"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+
+    <div class="section-title"><span class="dot"></span>🚩 Variables que más incumplen</div>
+    <div class="card" id="inf-pareto"><div class="hint" style="margin-top:0;">Cargando…</div></div>
 
     <div class="section-title"><span class="dot"></span>Exportar</div>
     <div class="card settings-card">
@@ -2106,6 +2179,18 @@ async function renderInformes(){
     const recsOk = recs.filter(Boolean);
     document.getElementById('inf-resumen').innerHTML = `<div style="white-space:pre-line;">${escapeHtml(narrativaGemba(metas, agruparPorMaquina(recsOk)))}</div>`;
     renderMaquinasChart(recsOk, maquinasBox);
+    const wEstado = {cumple:100, parcial:50, no_cumple:0};
+    const filasVar = [];
+    recsOk.forEach(rec=>{
+      CATLABEL_KEYS.forEach(key=>{
+        (rec[key]||[]).forEach(it=>{
+          if(it.estado in wEstado) filasVar.push({item:it.nombre, maquina:rec.maquinaNombre, valor:wEstado[it.estado]});
+        });
+      });
+    });
+    const matrizG = buildMatrizVariables(filasVar);
+    document.getElementById('inf-matriz').innerHTML = matrizHtml(matrizG);
+    document.getElementById('inf-pareto').innerHTML = paretoHtml(matrizG);
     const photos = [];
     recsOk.forEach(rec=>{
       const lugar = [rec.areaNombre, rec.maquinaNombre, rec.zonaNombre].filter(Boolean).join(' · ');
@@ -2189,6 +2274,159 @@ async function renderInformes(){
     toast('Respaldo exportado');
   });
 
+  refresh();
+}
+
+/* ---- Informes: Validación de paso ---- */
+let tpmInfDesde = null, tpmInfHasta = null;
+async function renderInformesTpm(body){
+  if(!tpmInfHasta) tpmInfHasta = todayISO();
+  if(!tpmInfDesde){ const d=new Date(); d.setDate(d.getDate()-29); tpmInfDesde = d.toISOString().slice(0,10); }
+  body.innerHTML = `
+    <div class="hint" style="margin-top:0;">Resultados de todas las validaciones de paso (TPM) en el rango de fechas.</div>
+    <div class="row2">
+      <div class="field"><label>Desde</label><input type="date" id="tpminf-desde" value="${tpmInfDesde}"></div>
+      <div class="field"><label>Hasta</label><input type="date" id="tpminf-hasta" value="${tpmInfHasta}"></div>
+    </div>
+    <div id="tpminf-stats"></div>
+    <div class="section-title"><span class="dot"></span>🧠 Resumen ejecutivo</div>
+    <div class="card" id="tpminf-resumen"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+    <div class="section-title"><span class="dot"></span>🧮 Variables por máquina</div>
+    <div class="hint" style="margin-top:0;">Puntaje promedio (%) de cada variable, por máquina, en el rango filtrado.</div>
+    <div class="card" id="tpminf-matriz"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+    <div class="section-title"><span class="dot"></span>🚩 Variables que más incumplen</div>
+    <div class="card" id="tpminf-pareto"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+    <div class="section-title"><span class="dot"></span>Exportar</div>
+    <div class="card settings-card">
+      <h3>Detalle de validaciones</h3>
+      <p class="desc">Un renglón por cada variable evaluada en cada validación de paso del rango filtrado.</p>
+      <button class="btn btn-accent btn-block" id="tpminf-export">⬇ Exportar detalle (CSV / Excel)</button>
+    </div>
+  `;
+  async function refresh(){
+    const desde = document.getElementById('tpminf-desde').value;
+    const hasta = document.getElementById('tpminf-hasta').value;
+    tpmInfDesde = desde; tpmInfHasta = hasta;
+    const todas = await Store.getTpmCertificaciones();
+    const filtradas = todas.filter(c=> c.fecha>=desde && c.fecha<=hasta);
+    const aprobadas = filtradas.filter(c=>c.aprobado).length;
+    const prom = filtradas.length ? filtradas.reduce((a,c)=>a+(c.score||0),0)/filtradas.length : null;
+    document.getElementById('tpminf-stats').innerHTML = `<div class="stats-row">
+      <div class="stat-box"><div class="num">${filtradas.length}</div><div class="lbl">Validaciones</div></div>
+      <div class="stat-box"><div class="num" style="color:var(--success)">${aprobadas}</div><div class="lbl">Aprobadas</div></div>
+      <div class="stat-box"><div class="num" style="color:${colorForScore(prom)}">${prom===null?'–':Math.round(prom)}</div><div class="lbl">Prom. %</div></div>
+    </div>`;
+    let texto;
+    if(!filtradas.length){ texto = 'No hay validaciones de paso registradas en este periodo.'; }
+    else{
+      texto = `Se registraron ${filtradas.length} validación(es) de paso, de las cuales ${aprobadas} fueron aprobadas (${Math.round(aprobadas/filtradas.length*100)}%). `;
+      const porMaquina = {};
+      filtradas.forEach(c=>{ if(c.maquinaNombre){ (porMaquina[c.maquinaNombre]=porMaquina[c.maquinaNombre]||[]).push(c.score||0); } });
+      const proms = Object.keys(porMaquina).map(m=>({m, avg: porMaquina[m].reduce((a,v)=>a+v,0)/porMaquina[m].length}));
+      if(proms.length>1){
+        proms.sort((a,b)=>a.avg-b.avg);
+        texto += `La máquina con menor desempeño es ${proms[0].m} (${Math.round(proms[0].avg)}%), frente a ${proms[proms.length-1].m} con ${Math.round(proms[proms.length-1].avg)}%.`;
+      }else if(proms.length===1){
+        texto += `${proms[0].m} tiene un puntaje promedio de ${Math.round(proms[0].avg)}%.`;
+      }
+    }
+    document.getElementById('tpminf-resumen').innerHTML = `<div style="white-space:pre-line;">${escapeHtml(texto)}</div>`;
+
+    document.getElementById('tpminf-matriz').innerHTML = '<div class="hint" style="margin-top:0;">Cargando…</div>';
+    const detalles = await Promise.all(filtradas.map(c=>Store.getTpmCertificacion(c.id)));
+    const filasVar = [];
+    detalles.filter(Boolean).forEach(cert=>{
+      (cert.items||[]).forEach(it=>{
+        filasVar.push({item:it.nombre, maquina:cert.maquinaNombre, valor:(it.puntaje/cert.escala)*100});
+      });
+    });
+    const matriz = buildMatrizVariables(filasVar);
+    document.getElementById('tpminf-matriz').innerHTML = matrizHtml(matriz);
+    document.getElementById('tpminf-pareto').innerHTML = paretoHtml(matriz);
+
+    document.getElementById('tpminf-export').onclick = ()=>{
+      if(!detalles.length){ toast('No hay validaciones en este filtro'); return; }
+      const rows = [];
+      detalles.filter(Boolean).forEach(cert=>{
+        (cert.items||[]).forEach(it=>{
+          rows.push({Empresa: currentEmpresa?.nombre||'', Fecha: cert.fecha, Área: cert.areaNombre||'', Máquina: cert.maquinaNombre||'', Responsable: cert.responsable||'', Variable: it.nombre, Puntaje: it.puntaje, Escala: cert.escala, Observación: it.observacion||'', 'Total validación': cert.totalPuntos, Umbral: cert.umbral, Aprobada: cert.aprobado?'Sí':'No'});
+        });
+      });
+      downloadFile(toCSV(rows), `validacion-paso-detalle-${todayISO()}.csv`, 'text/csv;charset=utf-8');
+      toast('Detalle exportado');
+    };
+  }
+  document.getElementById('tpminf-desde').addEventListener('change', refresh);
+  document.getElementById('tpminf-hasta').addEventListener('change', refresh);
+  refresh();
+}
+
+/* ---- Informes: Entrega de turno ---- */
+async function renderInformesTurno(body){
+  if(!turnoInformeHasta) turnoInformeHasta = todayISO();
+  if(!turnoInformeDesde){ const d=new Date(); d.setDate(d.getDate()-6); turnoInformeDesde = d.toISOString().slice(0,10); }
+  body.innerHTML = `
+    <div class="hint" style="margin-top:0;">Cumplimiento de todas las entregas de turno en el rango de fechas.</div>
+    <div class="row2">
+      <div class="field"><label>Desde</label><input type="date" id="ti-desde" value="${turnoInformeDesde}"></div>
+      <div class="field"><label>Hasta</label><input type="date" id="ti-hasta" value="${turnoInformeHasta}"></div>
+    </div>
+    <div id="ti-stats"></div>
+    <div class="section-title"><span class="dot"></span>🧠 Resumen ejecutivo</div>
+    <div class="card" id="ti-resumen"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+    <div class="section-title"><span class="dot"></span>Cumplimiento por turno</div>
+    <div class="card" id="ti-porturno"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+    <div class="section-title"><span class="dot"></span>🧮 Variables por máquina / área</div>
+    <div class="hint" style="margin-top:0;">% de cumplimiento de cada variable, por máquina o área, en el rango filtrado.</div>
+    <div class="card" id="ti-matriz"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+    <div class="section-title"><span class="dot"></span>🚩 Variables que más incumplen</div>
+    <div class="card" id="ti-pareto"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+    <div class="section-title"><span class="dot"></span>Detalle</div>
+    <div id="ti-detalle"></div>
+  `;
+  async function refresh(){
+    const desde = document.getElementById('ti-desde').value;
+    const hasta = document.getElementById('ti-hasta').value;
+    turnoInformeDesde = desde; turnoInformeHasta = hasta;
+    const todas = await Store.getEntregasTurno();
+    const filtradas = todas.filter(e=> e.fecha>=desde && e.fecha<=hasta);
+    const prom = filtradas.length? filtradas.reduce((a,e)=>a+(e.cumplePct||0),0)/filtradas.length : null;
+    document.getElementById('ti-stats').innerHTML = `<div class="stats-row">
+      <div class="stat-box"><div class="num">${filtradas.length}</div><div class="lbl">Entregas</div></div>
+      <div class="stat-box"><div class="num" style="color:${colorForScore(prom)}">${prom===null?'–':Math.round(prom)}</div><div class="lbl">Cumpl. prom. %</div></div>
+    </div>`;
+    const porTurno = {};
+    filtradas.forEach(e=>{ (porTurno[e.turno] = porTurno[e.turno]||[]).push(e.cumplePct||0); });
+    document.getElementById('ti-resumen').innerHTML = `<div style="white-space:pre-line;">${escapeHtml(narrativaTurno(filtradas, prom, porTurno))}</div>`;
+    document.getElementById('ti-porturno').innerHTML = Object.keys(porTurno).length===0?`<div class="hint" style="margin-top:0;">Sin datos en este periodo.</div>`:
+      Object.keys(porTurno).map(t=>{
+        const vals = porTurno[t]; const avg = vals.reduce((a,v)=>a+v,0)/vals.length;
+        return `<div class="score-bar-row"><div class="score-bar-head"><b>${escapeHtml(t)}</b><span style="color:${colorForScore(avg)}">${Math.round(avg)}%</span></div><div class="score-bar-track"><div class="score-bar-fill" style="width:${avg}%;background:${colorForScore(avg)}"></div></div></div>`;
+      }).join('');
+
+    document.getElementById('ti-matriz').innerHTML = '<div class="hint" style="margin-top:0;">Cargando…</div>';
+    const detalles = await Promise.all(filtradas.map(e=>Store.getEntregaTurno(e.id)));
+    const filasVar = [];
+    detalles.filter(Boolean).forEach(ent=>{
+      const maquina = ent.maquinaNombre || ent.areaNombre || ent.turno;
+      (ent.items||[]).forEach(it=>{ filasVar.push({item:it.nombre, maquina, valor: it.cumple?100:0}); });
+    });
+    const matriz = buildMatrizVariables(filasVar);
+    document.getElementById('ti-matriz').innerHTML = matrizHtml(matriz);
+    document.getElementById('ti-pareto').innerHTML = paretoHtml(matriz);
+
+    document.getElementById('ti-detalle').innerHTML = filtradas.map(e=>`
+      <div class="card walk-card" data-id="${e.id}">
+        <div class="info"><div class="maquina">${escapeHtml(e.turno)} · ${fmtDate(e.fecha)}</div><div class="meta">${escapeHtml(e.areaNombre||e.maquinaNombre||'')} · ${escapeHtml(e.responsable||'')}</div></div>
+        <div class="gauge-num" style="color:${colorForScore(e.cumplePct)}">${e.cumplePct===null||e.cumplePct===undefined?'–':Math.round(e.cumplePct)}%</div>
+      </div>
+    `).join('');
+    document.querySelectorAll('#ti-detalle .walk-card').forEach(el=>{
+      el.addEventListener('click', ()=>{ turnoDetalleId=el.dataset.id; turnoSubView='detalle'; renderTurno(); showView('view-turno'); });
+    });
+  }
+  document.getElementById('ti-desde').addEventListener('change', refresh);
+  document.getElementById('ti-hasta').addEventListener('change', refresh);
   refresh();
 }
 
@@ -2347,7 +2585,7 @@ TPM | Nivel de aceite dentro de rango"></textarea>
     </div>
     `:''}
 
-    <div class="hint" style="text-align:center;margin-top:20px;">GEMBA APP — v1.0<br>Desarrollado por MT Performance Solutions</div>
+    <div class="hint" style="text-align:center;margin-top:20px;">Herramienta Datos de Piso de Planta — v1.0<br>Desarrollado por MT Performance Solutions</div>
   `;
 
   if(isAdmin){
@@ -2570,7 +2808,7 @@ async function descargarInformePPTX(rec){
     /* ---- Portada ---- */
     let s1 = pres.addSlide();
     s1.background = {color: NAVY};
-    s1.addText('GEMBA APP', {x:0.5,y:0.5,w:4,h:0.35,fontFace:'Montserrat',fontSize:12,color:ACCENT,bold:true,charSpacing:2});
+    s1.addText('DATOS DE PISO DE PLANTA', {x:0.5,y:0.5,w:4,h:0.35,fontFace:'Montserrat',fontSize:12,color:ACCENT,bold:true,charSpacing:2});
     s1.addText('INFORME DE HALLAZGOS', {x:0.5,y:2.0,w:9,h:0.9,fontFace:'Montserrat',fontSize:32,color:WHITE,bold:true});
     s1.addText([rec.areaNombre, rec.maquinaNombre, rec.zonaNombre].filter(Boolean).join(' · '), {x:0.5,y:2.9,w:9,h:0.4,fontFace:'Montserrat',fontSize:16,color:GREY});
     s1.addText(`Recorrido del ${fmtDate(rec.fecha)}${rec.responsable?`  ·  Responsable: ${rec.responsable}`:''}`, {x:0.5,y:3.3,w:9,h:0.4,fontFace:'Montserrat',fontSize:13,color:GREY});
@@ -2945,7 +3183,6 @@ async function renderTurno(){
   const body = document.getElementById('turno-body');
   if(turnoSubView==='nueva'){ body.innerHTML = turnoNuevaHtml(); wireTurnoNueva(); return; }
   if(turnoSubView==='detalle'){ await renderTurnoDetalle(); return; }
-  if(turnoSubView==='informe'){ await renderTurnoInforme(); return; }
   const entregas = await Store.getEntregasTurno();
   body.innerHTML = `
     <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🔄 Entrega de turno</div>
@@ -2965,7 +3202,7 @@ async function renderTurno(){
     `).join('')}
   `;
   document.getElementById('turno-nueva-btn').addEventListener('click', startTurnoNueva);
-  document.getElementById('turno-informe-btn').addEventListener('click', ()=>{ turnoSubView='informe'; renderTurno(); });
+  document.getElementById('turno-informe-btn').addEventListener('click', ()=>{ informesSubView='turno'; renderInformes(); showView('view-informes'); });
   body.querySelectorAll('.walk-card').forEach(el=>{
     el.addEventListener('click', ()=>{ turnoDetalleId=el.dataset.id; turnoSubView='detalle'; renderTurno(); });
   });
@@ -3116,52 +3353,7 @@ function narrativaTurno(filtradas, prom, porTurno){
   texto += conNovedades>0 ? `${conNovedades} entrega(s) reportaron novedades para el siguiente turno.` : 'Ninguna entrega reportó novedades pendientes en este periodo.';
   return texto;
 }
-async function renderTurnoInforme(){
-  const body = document.getElementById('turno-body');
-  if(!turnoInformeHasta){ turnoInformeHasta = todayISO(); }
-  if(!turnoInformeDesde){ const d=new Date(); d.setDate(d.getDate()-6); turnoInformeDesde = d.toISOString().slice(0,10); }
-  const todas = await Store.getEntregasTurno();
-  const filtradas = todas.filter(e=> e.fecha>=turnoInformeDesde && e.fecha<=turnoInformeHasta);
-  const prom = filtradas.length? filtradas.reduce((a,e)=>a+(e.cumplePct||0),0)/filtradas.length : null;
-  const porTurno = {};
-  filtradas.forEach(e=>{ (porTurno[e.turno] = porTurno[e.turno]||[]).push(e.cumplePct||0); });
-  body.innerHTML = `
-    <button class="btn btn-ghost btn-sm" id="ti-volver">← Volver</button>
-    <div class="section-title"><span class="dot"></span>📊 Informe ejecutivo de turno</div>
-    <div class="row2">
-      <div class="field"><label>Desde</label><input type="date" id="ti-desde" value="${turnoInformeDesde}"></div>
-      <div class="field"><label>Hasta</label><input type="date" id="ti-hasta" value="${turnoInformeHasta}"></div>
-    </div>
-    <div class="card">
-      ${gaugeSvg(prom)}
-      <div class="hint" style="text-align:center;">${filtradas.length} entrega(s) de turno en el periodo</div>
-    </div>
-    <div class="section-title"><span class="dot"></span>🧠 Resumen</div>
-    <div class="card"><div style="white-space:pre-line;">${escapeHtml(narrativaTurno(filtradas, prom, porTurno))}</div></div>
-    <div class="section-title"><span class="dot"></span>Cumplimiento por turno</div>
-    <div class="card">
-      ${Object.keys(porTurno).length===0?`<div class="hint" style="margin-top:0;">Sin datos en este periodo.</div>`:
-        Object.keys(porTurno).map(t=>{
-          const vals = porTurno[t]; const avg = vals.reduce((a,v)=>a+v,0)/vals.length;
-          return `<div class="score-bar-row"><div class="score-bar-head"><b>${escapeHtml(t)}</b><span style="color:${colorForScore(avg)}">${Math.round(avg)}%</span></div><div class="score-bar-track"><div class="score-bar-fill" style="width:${avg}%;background:${colorForScore(avg)}"></div></div></div>`;
-        }).join('')
-      }
-    </div>
-    <div class="section-title"><span class="dot"></span>Detalle</div>
-    ${filtradas.map(e=>`
-      <div class="card walk-card" data-id="${e.id}">
-        <div class="info"><div class="maquina">${escapeHtml(e.turno)} · ${fmtDate(e.fecha)}</div><div class="meta">${escapeHtml(e.areaNombre||e.maquinaNombre||'')} · ${escapeHtml(e.responsable||'')}</div></div>
-        <div class="gauge-num" style="color:${colorForScore(e.cumplePct)}">${e.cumplePct===null||e.cumplePct===undefined?'–':Math.round(e.cumplePct)}%</div>
-      </div>
-    `).join('')}
-  `;
-  document.getElementById('ti-volver').addEventListener('click', ()=>{ turnoSubView='lista'; renderTurno(); });
-  document.getElementById('ti-desde').addEventListener('change', e=>{ turnoInformeDesde=e.target.value; renderTurno(); });
-  document.getElementById('ti-hasta').addEventListener('change', e=>{ turnoInformeHasta=e.target.value; renderTurno(); });
-  body.querySelectorAll('.walk-card').forEach(el=>{
-    el.addEventListener('click', ()=>{ turnoDetalleId=el.dataset.id; turnoSubView='detalle'; renderTurno(); });
-  });
-}
+
 </script>
 </body>
 </html>
