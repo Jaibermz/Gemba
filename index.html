@@ -175,6 +175,16 @@ textarea{resize:vertical;min-height:64px;line-height:1.4;}
 .status-btn.sel-cumple{background:var(--success-dim);border-color:var(--success);color:#7de8bb;}
 .status-btn.sel-parcial{background:var(--warning-dim);border-color:var(--warning);color:#ffd666;}
 .status-btn.sel-no{background:var(--danger-dim);border-color:var(--danger);color:#ff9a86;}
+.scale-row{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;}
+.scale-btn{
+  flex:1;min-width:30px;padding:9px 2px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+  color:var(--text-muted);font-size:13px;font-weight:700;text-align:center;transition:.15s;
+}
+.scale-btn.sel{background:var(--success-dim);border-color:var(--accent);color:var(--accent);}
+.portada-card{display:flex;align-items:center;gap:14px;cursor:pointer;transition:.15s;}
+.portada-card:active{transform:scale(0.98);background:var(--surface-2);}
+.portada-icon{font-size:32px;flex-shrink:0;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:14px;}
+.portada-title{font-weight:800;font-size:16px;}
 
 /* OBSERVATION CARD */
 .obs-card{background:var(--surface-2);border:1px solid var(--border-soft);border-radius:12px;padding:14px;margin-bottom:10px;position:relative;}
@@ -436,6 +446,23 @@ nav.bottom{
     <div id="creador-body"></div>
   </div>
 
+  <!-- PORTADA -->
+  <div class="view" id="view-portada">
+    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>¿Qué vas a hacer?</div>
+    <div class="card portada-card" id="portada-gemba">
+      <div class="portada-icon">🚶</div>
+      <div class="portada-info"><div class="portada-title">Gemba Walk</div><div class="hint" style="margin:2px 0 0;">Recorrido de planta con checklist y observaciones</div></div>
+    </div>
+    <div class="card portada-card" id="portada-tpm">
+      <div class="portada-icon">🧰</div>
+      <div class="portada-info"><div class="portada-title">Validación de paso</div><div class="hint" style="margin:2px 0 0;">Certificación TPM por variables, con puntaje y foto</div></div>
+    </div>
+    <div class="card portada-card" id="portada-turno">
+      <div class="portada-icon">🔄</div>
+      <div class="portada-info"><div class="portada-title">Entrega de turno</div><div class="hint" style="margin:2px 0 0;">Cumple / no cumple e informe ejecutivo</div></div>
+    </div>
+  </div>
+
   <!-- HOME -->
   <div class="view" id="view-home">
     <div id="home-stats"></div>
@@ -487,13 +514,13 @@ nav.bottom{
 
 <nav class="bottom">
   <div class="bottom-inner">
-    <button class="nav-btn" data-tab="view-home">
+    <button class="nav-btn" data-tab="view-portada">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
       Inicio
     </button>
     <button class="nav-btn" data-tab="view-tpm">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
-      TPM
+      Validación
     </button>
     <button class="nav-btn" data-tab="__nuevo">
       <span class="nav-fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg></span>
@@ -727,7 +754,7 @@ const Store = {
   },
   async getTpmCertificaciones(){
     const {data} = await sb.from('tpm_certificaciones').select('*').eq('empresa_id', currentEmpresaId).order('fecha', {ascending:false});
-    return (data||[]).map(c=>({id:c.id, areaId:c.area_id, areaNombre:c.area_nombre, maquinaId:c.maquina_id, maquinaNombre:c.maquina_nombre, procesoProductivo:c.proceso_productivo||'', fecha:c.fecha, responsable:c.responsable_nombre, score:c.score, notas:c.notas||'', creadoEn:new Date(c.creado_en).getTime()}));
+    return (data||[]).map(c=>({id:c.id, areaId:c.area_id, areaNombre:c.area_nombre, maquinaId:c.maquina_id, maquinaNombre:c.maquina_nombre, procesoProductivo:c.proceso_productivo||'', fecha:c.fecha, responsable:c.responsable_nombre, score:c.score, escala:c.escala||10, totalPuntos:c.total_puntos, umbral:c.umbral||70, aprobado:c.aprobado, notas:c.notas||'', creadoEn:new Date(c.creado_en).getTime()}));
   },
   async getTpmCertificacion(id){
     const {data:c, error} = await sb.from('tpm_certificaciones').select('*').eq('id', id).single();
@@ -735,7 +762,8 @@ const Store = {
     const {data:itemRows} = await sb.from('tpm_certificacion_items').select('*').eq('certificacion_id', id);
     return {
       id:c.id, areaId:c.area_id, areaNombre:c.area_nombre, maquinaId:c.maquina_id, maquinaNombre:c.maquina_nombre,
-      procesoProductivo:c.proceso_productivo||'', fecha:c.fecha, responsable:c.responsable_nombre, score:c.score, notas:c.notas||'',
+      procesoProductivo:c.proceso_productivo||'', fecha:c.fecha, responsable:c.responsable_nombre, score:c.score, escala:c.escala||10,
+      totalPuntos:c.total_puntos, umbral:c.umbral||70, aprobado:c.aprobado, notas:c.notas||'',
       creadoEn:new Date(c.creado_en).getTime(),
       items:(itemRows||[]).map(r=>({id:r.id, variableId:r.variable_id, nombre:r.nombre, puntaje:r.puntaje, observacion:r.observacion||'', foto:r.foto_url?{data:r.foto_url, nombre:r.foto_nombre||''}:null}))
     };
@@ -748,7 +776,7 @@ const Store = {
       id: cert.id, empresa_id: currentEmpresaId, area_id: cert.areaId||null, area_nombre: cert.areaNombre||null,
       maquina_id: cert.maquinaId||null, maquina_nombre: cert.maquinaNombre||null, proceso_productivo: cert.procesoProductivo||null,
       fecha: cert.fecha, responsable_id: currentUsuario?currentUsuario.id:null, responsable_nombre: cert.responsable||null,
-      score: cert.score, notas: cert.notas||null
+      score: cert.score, escala: cert.escala||10, total_puntos: cert.totalPuntos, umbral: cert.umbral, aprobado: cert.aprobado, notas: cert.notas||null
     };
     const {error} = await sb.from('tpm_certificaciones').upsert(row);
     if(error) throw error;
@@ -771,6 +799,14 @@ const Store = {
   async saveTurnosConfig(list){
     await sb.from('empresas').update({turnos: list}).eq('id', currentEmpresaId);
     currentEmpresa.turnos = list;
+  },
+  async saveEscalaTpm(n){
+    await sb.from('empresas').update({escala_tpm: n}).eq('id', currentEmpresaId);
+    currentEmpresa.escalaTpm = n;
+  },
+  async saveUmbralTpm(n){
+    await sb.from('empresas').update({umbral_tpm: n}).eq('id', currentEmpresaId);
+    currentEmpresa.umbralTpm = n;
   },
   async getEntregasTurno(){
     const {data} = await sb.from('entregas_turno').select('*').eq('empresa_id', currentEmpresaId).order('fecha', {ascending:false});
@@ -862,7 +898,7 @@ async function afterLogin(){
   }
   currentEmpresaId = currentUsuario.empresaId;
   const {data:empresaRow} = await sb.from('empresas').select('*').eq('id', currentEmpresaId).single();
-  currentEmpresa = empresaRow ? {id:empresaRow.id, nombre:empresaRow.nombre, logo:empresaRow.logo_url, limiteUsuarios:empresaRow.limite_usuarios, fechaVencimiento:empresaRow.fecha_vencimiento, turnos:empresaRow.turnos||['Mañana','Tarde','Noche']} : {id:currentEmpresaId, nombre:'Empresa', logo:null, turnos:['Mañana','Tarde','Noche']};
+  currentEmpresa = empresaRow ? {id:empresaRow.id, nombre:empresaRow.nombre, logo:empresaRow.logo_url, limiteUsuarios:empresaRow.limite_usuarios, fechaVencimiento:empresaRow.fecha_vencimiento, turnos:empresaRow.turnos||['Mañana','Tarde','Noche'], escalaTpm:empresaRow.escala_tpm||10, umbralTpm:empresaRow.umbral_tpm||70} : {id:currentEmpresaId, nombre:'Empresa', logo:null, turnos:['Mañana','Tarde','Noche'], escalaTpm:10, umbralTpm:70};
   const mem = estadoMembresia(currentEmpresa);
   if(mem.estado==='vencida'){
     document.getElementById('mv-info').textContent = `La membresía de ${currentEmpresa.nombre} venció hace ${Math.abs(mem.dias)} día(s) (${fmtDate(currentEmpresa.fechaVencimiento)}). Contacta al creador para renovarla.`;
@@ -873,9 +909,7 @@ async function afterLogin(){
   indexList = await Store.getIndex();
   templates = await Store.getTemplates();
   renderBrand();
-  renderFilters();
-  renderHome();
-  showView('view-home');
+  showView('view-portada');
 }
 document.getElementById('fp-save').addEventListener('click', async ()=>{
   const p1 = document.getElementById('fp-pass1').value;
@@ -897,6 +931,15 @@ async function logout(){
   catalog = {areas:[]}; indexList = []; templates = {seguridad:[],calidad:[],centerline:[],orden_aseo:[],lila:[],tpm:[]};
   showView('view-login');
 }
+document.getElementById('portada-gemba').addEventListener('click', ()=>{
+  renderFilters(); renderHome(); showView('view-home');
+});
+document.getElementById('portada-tpm').addEventListener('click', ()=>{
+  tpmSubView='lista'; renderTpm(); showView('view-tpm');
+});
+document.getElementById('portada-turno').addEventListener('click', ()=>{
+  turnoSubView='lista'; renderTurno(); showView('view-turno');
+});
 
 function renderBrand(){
   const nombre = currentEmpresa ? currentEmpresa.nombre : 'GEMBA APP';
@@ -916,8 +959,8 @@ function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo({top:0,behavior:'instant'});
-  if(id==='view-home' || id==='view-informes' || id==='view-ajustes' || id==='view-tpm' || id==='view-turno'){
-    currentTab = id;
+  if(id==='view-home' || id==='view-informes' || id==='view-ajustes' || id==='view-tpm' || id==='view-turno' || id==='view-portada'){
+    currentTab = id==='view-portada' ? 'view-portada' : id;
   }else if(id==='view-nuevo'){
     currentTab = '__nuevo';
   }
@@ -933,6 +976,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     const tab = btn.dataset.tab;
     if(tab==='__nuevo'){ startWizard(); return; }
     if(tab==='view-home'){ renderFilters(); renderHome(); }
+    if(tab==='view-portada'){ /* nada que cargar, es estática */ }
     if(tab==='view-informes'){ renderInformes(); }
     if(tab==='view-ajustes'){ renderAjustes(); }
     if(tab==='view-tpm'){ tpmSubView='lista'; renderTpm(); }
@@ -1896,6 +1940,76 @@ function renderMaquinasChart(recs, container){
   }).join('');
 }
 
+function agruparPorMaquina(recs){
+  const grupos = {};
+  recs.forEach(rec=>{
+    if(rec.scores?.general===null || rec.scores?.general===undefined) return;
+    const key = rec.maquinaId || rec.maquinaNombre;
+    if(!key) return;
+    if(!grupos[key]) grupos[key] = {nombre: rec.maquinaNombre, proceso: rec.procesoProductivo||'', registros:[]};
+    grupos[key].registros.push({fecha: rec.fecha, score: rec.scores.general});
+  });
+  const lista = Object.values(grupos);
+  lista.forEach(m=> m.registros.sort((a,b)=> a.fecha.localeCompare(b.fecha)));
+  lista.sort((a,b)=> a.registros[a.registros.length-1].score - b.registros[b.registros.length-1].score);
+  return lista;
+}
+function narrativaGemba(metas, lista){
+  if(!metas.length) return 'Aún no hay recorridos registrados en este filtro.';
+  const withScore = metas.filter(r=>r.scores.general!==null && r.scores.general!==undefined);
+  const avg = withScore.length ? Math.round(withScore.reduce((a,r)=>a+r.scores.general,0)/withScore.length) : null;
+  const opAltas = metas.reduce((a,r)=>a+(r.opAltas||0),0);
+  let texto = `Se registraron ${metas.length} recorrido(s)`;
+  if(avg!==null) texto += ` con un puntaje general promedio de ${avg}`;
+  texto += '. ';
+  if(lista.length){
+    const peor = lista[0], mejor = lista[lista.length-1];
+    const scorePeor = Math.round(peor.registros[peor.registros.length-1].score);
+    if(lista.length>1){
+      const scoreMejor = Math.round(mejor.registros[mejor.registros.length-1].score);
+      texto += `La máquina con menor desempeño es ${peor.nombre} (${scorePeor}), mientras que ${mejor.nombre} lidera con ${scoreMejor}. `;
+    }else{
+      texto += `La máquina evaluada, ${peor.nombre}, tiene un puntaje de ${scorePeor}. `;
+    }
+    if(peor.registros.length>1){
+      const prevPeor = Math.round(peor.registros[peor.registros.length-2].score);
+      const delta = scorePeor - prevPeor;
+      if(delta<0) texto += `${peor.nombre} viene en descenso (${delta} pts frente al recorrido anterior) — conviene priorizarla. `;
+      else if(delta>0) texto += `${peor.nombre} mejoró +${delta} pts frente al recorrido anterior. `;
+    }
+  }
+  texto += opAltas>0 ? `Se registraron ${opAltas} oportunidad(es) de severidad alta pendientes de cerrar.` : 'No hay oportunidades de severidad alta abiertas en este filtro.';
+  return texto;
+}
+async function buscarEntidad(q){
+  const term = (q||'').trim().toLowerCase();
+  if(!term) return 'Escribe un nombre para buscar.';
+  const gemba = indexList.filter(r=> (r.maquinaNombre||'').toLowerCase().includes(term) || (r.areaNombre||'').toLowerCase().includes(term));
+  const tpmAll = await Store.getTpmCertificaciones();
+  const tpm = tpmAll.filter(c=> (c.maquinaNombre||'').toLowerCase().includes(term) || (c.areaNombre||'').toLowerCase().includes(term));
+  const turnoAll = await Store.getEntregasTurno();
+  const turno = turnoAll.filter(e=> (e.turno||'').toLowerCase().includes(term) || (e.areaNombre||'').toLowerCase().includes(term) || (e.maquinaNombre||'').toLowerCase().includes(term));
+  if(!gemba.length && !tpm.length && !turno.length) return `No encontré nada que coincida con "${q}".`;
+  let out = '';
+  if(gemba.length){
+    const withScore = gemba.filter(r=>r.scores.general!==null && r.scores.general!==undefined);
+    const avg = withScore.length? Math.round(withScore.reduce((a,r)=>a+r.scores.general,0)/withScore.length):null;
+    const ultimo = gemba.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+    out += `🚶 Gemba Walk: ${gemba.length} recorrido(s)${avg!==null?`, promedio ${avg}`:''}. Último: ${fmtDate(ultimo.fecha)}${ultimo.scores.general!==null&&ultimo.scores.general!==undefined?` (${Math.round(ultimo.scores.general)} pts)`:''}.\n\n`;
+  }
+  if(tpm.length){
+    const aprobadas = tpm.filter(c=>c.aprobado).length;
+    const ultimo = tpm.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+    out += `🧰 Validación de paso: ${tpm.length} registrada(s), ${aprobadas} aprobada(s). Última: ${fmtDate(ultimo.fecha)} — ${ultimo.aprobado?'aprobada':'no aprobada'}${ultimo.totalPuntos!==null&&ultimo.totalPuntos!==undefined?` (${Math.round(ultimo.totalPuntos)} pts)`:''}.\n\n`;
+  }
+  if(turno.length){
+    const avgC = turno.reduce((a,e)=>a+(e.cumplePct||0),0)/turno.length;
+    const ultimo = turno.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+    out += `🔄 Entrega de turno: ${turno.length} entrega(s), cumplimiento promedio ${Math.round(avgC)}%. Última: ${fmtDate(ultimo.fecha)} (${escapeHtml(ultimo.turno)}) — ${Math.round(ultimo.cumplePct||0)}%.`;
+  }
+  return out.trim();
+}
+
 async function renderInformes(){
   const body = document.getElementById('informes-body');
   const areaOpts = catalog.areas.map(a=>`<option value="${a.id}">${escapeHtml(a.nombre)}</option>`).join('');
@@ -1912,6 +2026,18 @@ async function renderInformes(){
       <div class="field" style="margin-bottom:0;"><label>Hasta</label><input type="date" id="inf-hasta"></div>
     </div>
     <div id="inf-stats"></div>
+
+    <div class="section-title"><span class="dot"></span>🧠 Resumen ejecutivo</div>
+    <div class="card" id="inf-resumen"><div class="hint" style="margin-top:0;">Cargando…</div></div>
+
+    <div class="section-title"><span class="dot"></span>🔎 Buscar máquina, área o turno</div>
+    <div class="card settings-card">
+      <div class="inline-add">
+        <input type="text" id="inf-buscar-input" placeholder="Ej. Selladora, Empaque, Turno 1">
+        <button class="btn btn-sm btn-accent" id="inf-buscar-btn">Buscar</button>
+      </div>
+      <div id="inf-buscar-resultado" style="margin-top:10px;"></div>
+    </div>
 
     <div class="section-title"><span class="dot"></span>📈 Comportamiento por máquina</div>
     <div class="hint" style="margin-top:0;">Ordenadas de la más crítica a la mejor. La línea muestra la evolución del puntaje general en el tiempo — <b style="color:var(--text)">úsala para ver si una máquina está mejorando o empeorando</b>. Cuando compares varias máquinas entre sí, la barra de arriba (puntaje más reciente) es la más rápida de leer; para el detalle de una sola máquina en el tiempo, la línea es mejor que la barra.</div>
@@ -1940,6 +2066,14 @@ async function renderInformes(){
 
   const areaSel = document.getElementById('inf-area');
   const maqSel = document.getElementById('inf-maquina');
+  document.getElementById('inf-buscar-btn').addEventListener('click', async ()=>{
+    const q = document.getElementById('inf-buscar-input').value;
+    const resBox = document.getElementById('inf-buscar-resultado');
+    resBox.innerHTML = '<div class="hint" style="margin-top:0;">Buscando…</div>';
+    const texto = await buscarEntidad(q);
+    resBox.innerHTML = `<div class="hint" style="margin-top:0;white-space:pre-line;">${escapeHtml(texto)}</div>`;
+  });
+  document.getElementById('inf-buscar-input').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('inf-buscar-btn').click(); });
   function filteredMetas(){
     const areaF = areaSel.value, maqF = maqSel.value;
     const desde = document.getElementById('inf-desde').value;
@@ -1970,6 +2104,7 @@ async function renderInformes(){
 
     const recs = await Promise.all(metas.map(m=>Store.getRecorrido(m.id)));
     const recsOk = recs.filter(Boolean);
+    document.getElementById('inf-resumen').innerHTML = `<div style="white-space:pre-line;">${escapeHtml(narrativaGemba(metas, agruparPorMaquina(recsOk)))}</div>`;
     renderMaquinasChart(recsOk, maquinasBox);
     const photos = [];
     recsOk.forEach(rec=>{
@@ -2145,19 +2280,31 @@ TPM | Nivel de aceite dentro de rango"></textarea>
     </div>
 
     <div class="card settings-card">
-      <h3>🧰 Variables de certificación TPM</h3>
-      <p class="desc">Estas son las variables que se piden calificar (0-100%) en cada certificación TPM.</p>
+      <h3>🧰 Variables de validación de paso</h3>
+      <p class="desc">Estas son las variables que se piden calificar en cada validación de paso.</p>
+      <div class="field"><label>Escala de puntuación (número de opciones en la cinta)</label>
+        <div class="inline-add">
+          <input type="number" id="escala-tpm" min="2" max="20" value="${(currentEmpresa && currentEmpresa.escalaTpm) || 10}">
+          <button class="btn btn-sm btn-accent" id="escala-tpm-save">Guardar escala</button>
+        </div>
+      </div>
+      <div class="field"><label>Puntaje mínimo para aprobar (suma de todas las variables)</label>
+        <div class="inline-add">
+          <input type="number" id="umbral-tpm" min="1" value="${(currentEmpresa && currentEmpresa.umbralTpm) || 70}">
+          <button class="btn btn-sm btn-accent" id="umbral-tpm-save">Guardar mínimo</button>
+        </div>
+      </div>
       ${tpmVars.length?tpmVars.map(v=>`
         <div class="data-row">
           <div class="dr-info"><div class="dr-name">${escapeHtml(v.nombre)}</div>${v.criterio?`<div class="dr-sub">${escapeHtml(v.criterio)}</div>`:''}</div>
           <button class="btn btn-sm btn-ghost" data-id="${v.id}" data-action="rm-tpmvar">Quitar</button>
         </div>
-      `).join(''):'<div class="hint" style="margin-top:0;">Aún no has definido variables de TPM.</div>'}
+      `).join(''):'<div class="hint" style="margin-top:0;">Aún no has definido variables de validación de paso.</div>'}
       <div class="row2" style="margin-top:10px;">
         <div class="field"><label>Nombre de la variable</label><input type="text" id="tpmvar-nombre" placeholder="Ej. Nivel de lubricación"></div>
         <div class="field"><label>Criterio esperado (opcional)</label><input type="text" id="tpmvar-criterio" placeholder="Ej. Entre marca MIN y MAX"></div>
       </div>
-      <button class="btn btn-accent btn-block" id="tpmvar-add">+ Agregar variable de TPM</button>
+      <button class="btn btn-accent btn-block" id="tpmvar-add">+ Agregar variable de validación</button>
     </div>
 
     <div class="card settings-card">
@@ -2249,6 +2396,18 @@ TPM | Nivel de aceite dentro de rango"></textarea>
       renderAjustes();
     });
 
+    document.getElementById('escala-tpm-save').addEventListener('click', async ()=>{
+      const n = parseInt(document.getElementById('escala-tpm').value);
+      if(!n || n<2 || n>20){ toast('Escoge un número entre 2 y 20'); return; }
+      await Store.saveEscalaTpm(n);
+      toast('Escala de validación actualizada');
+    });
+    document.getElementById('umbral-tpm-save').addEventListener('click', async ()=>{
+      const n = parseInt(document.getElementById('umbral-tpm').value);
+      if(!n || n<1){ toast('Escoge un puntaje mínimo válido'); return; }
+      await Store.saveUmbralTpm(n);
+      toast('Puntaje mínimo de aprobación actualizado');
+    });
     document.querySelectorAll('[data-action="rm-tpmvar"]').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const list = await Store.getTpmVariables();
@@ -2263,7 +2422,7 @@ TPM | Nivel de aceite dentro de rango"></textarea>
       const list = await Store.getTpmVariables();
       list.push({nombre, criterio});
       await Store.saveTpmVariables(list);
-      toast('Variable de TPM agregada');
+      toast('Variable de validación agregada');
       renderAjustes();
     });
 
@@ -2594,15 +2753,15 @@ async function renderCreadorPanel(){
   });
 }
 
-/* ============ MÓDULO: CERTIFICACIÓN TPM ============ */
+/* ============ MÓDULO: VALIDACIÓN DE PASO (antes TPM) ============ */
 async function renderTpm(){
   const body = document.getElementById('tpm-body');
   if(tpmSubView==='nueva'){ body.innerHTML = tpmNuevaHtml(); wireTpmNueva(); return; }
   if(tpmSubView==='detalle'){ await renderTpmDetalle(); return; }
   const certs = await Store.getTpmCertificaciones();
   body.innerHTML = `
-    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🧰 Certificación TPM</div>
-    <button class="btn btn-accent btn-block" id="tpm-nueva-btn" style="margin-bottom:14px;">+ Nueva certificación</button>
+    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🧰 Validación de paso</div>
+    <button class="btn btn-accent btn-block" id="tpm-nueva-btn" style="margin-bottom:14px;">+ Nueva validación</button>
     ${certs.length===0?`<div class="hint" style="margin-top:0;">Aún no hay certificaciones registradas.</div>`:''}
     ${certs.map(c=>`
       <div class="card walk-card" data-id="${c.id}">
@@ -2610,7 +2769,10 @@ async function renderTpm(){
           <div class="maquina">${escapeHtml(c.maquinaNombre||'(máquina)')}</div>
           <div class="meta">${escapeHtml(c.areaNombre||'')} · ${fmtDate(c.fecha)} · ${escapeHtml(c.responsable||'')}</div>
         </div>
-        <div class="gauge-num" style="color:${colorForScore(c.score)}">${c.score===null||c.score===undefined?'–':Math.round(c.score)}</div>
+        <div style="text-align:right;">
+          <div class="gauge-num" style="color:${c.aprobado?'var(--success)':'var(--danger)'}">${c.totalPuntos!==null&&c.totalPuntos!==undefined?Math.round(c.totalPuntos):'–'}</div>
+          <div class="hint" style="margin:0;">${c.aprobado?'Aprobada':'No aprobada'}</div>
+        </div>
       </div>
     `).join('')}
   `;
@@ -2621,11 +2783,12 @@ async function renderTpm(){
 }
 async function startTpmNueva(){
   const vars = await Store.getTpmVariables();
-  if(vars.length===0){ toast('Primero un administrador debe crear las variables de TPM en Ajustes'); return; }
+  if(vars.length===0){ toast('Primero un administrador debe crear las variables de validación de paso en Ajustes'); return; }
   tpmForm = {
     id: uid(), fecha: todayISO(), responsable: currentUsuario.nombre,
     areaId:'', areaNombre:'', maquinaId:'', maquinaNombre:'', procesoProductivo:'', notas:'',
-    items: vars.map(v=>({id:uid(), variableId:v.id, nombre:v.nombre, criterio:v.criterio, puntaje:100, observacion:'', foto:null}))
+    escala: (currentEmpresa && currentEmpresa.escalaTpm) || 10,
+    items: vars.map(v=>({id:uid(), variableId:v.id, nombre:v.nombre, criterio:v.criterio, puntaje:Math.ceil(((currentEmpresa && currentEmpresa.escalaTpm)||10)/2), observacion:'', foto:null}))
   };
   tpmSubView = 'nueva';
   renderTpm();
@@ -2636,7 +2799,7 @@ function tpmNuevaHtml(){
   const maquinas = area?area.maquinas:[];
   const maqOpts = maquinas.map(m=>`<option value="${m.id}" ${m.id===tpmForm.maquinaId?'selected':''}>${escapeHtml(m.nombre)}</option>`).join('');
   return `
-    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🧰 Nueva certificación TPM</div>
+    <div class="section-title" style="margin-top:4px;"><span class="dot"></span>🧰 Nueva validación de paso</div>
     <div class="field"><label>Fecha</label><input type="date" id="tpm-fecha" value="${tpmForm.fecha}"></div>
     <div class="field"><label>Área</label><select id="tpm-area"><option value="">Selecciona un área…</option>${areaOpts}</select></div>
     <div class="field"><label>Máquina / equipo</label><select id="tpm-maquina" ${!tpmForm.areaId?'disabled':''}><option value="">Selecciona una máquina…</option>${maqOpts}</select></div>
@@ -2646,16 +2809,18 @@ function tpmNuevaHtml(){
     <div class="field"><label>Notas de cierre (opcional)</label><textarea id="tpm-notas" placeholder="Comentarios generales de la certificación">${escapeHtml(tpmForm.notas)}</textarea></div>
     <div class="wizard-nav">
       <button class="btn" id="tpm-cancelar">Cancelar</button>
-      <button class="btn btn-accent" id="tpm-guardar">Guardar certificación</button>
+      <button class="btn btn-accent" id="tpm-guardar">Guardar validación</button>
     </div>
   `;
 }
 function tpmItemHtml(it,i){
+  const N = (currentEmpresa && currentEmpresa.escalaTpm) || 10;
+  const opciones = Array.from({length:N}, (_,idx)=>idx+1);
   return `<div class="check-item" data-i="${i}">
     <div class="check-item-head"><div style="flex:1;"><b>${escapeHtml(it.nombre)}</b>${it.criterio?`<div class="hint" style="margin:2px 0 0;">${escapeHtml(it.criterio)}</div>`:''}</div></div>
-    <div class="field" style="margin:10px 0 4px;">
-      <input type="range" min="0" max="100" step="5" class="tpm-puntaje" value="${it.puntaje}" style="width:100%;">
-      <div style="text-align:center;font-weight:700;color:var(--accent);" class="tpm-puntaje-num">${it.puntaje}%</div>
+    <div class="hint" style="margin:8px 0 4px;">Escoge el nivel encontrado (1 = deficiente, ${N} = ideal):</div>
+    <div class="scale-row">
+      ${opciones.map(n=>`<button class="scale-btn tpm-scale-btn ${it.puntaje===n?'sel':''}" data-v="${n}">${n}</button>`).join('')}
     </div>
     <textarea class="tpm-obs" placeholder="¿Qué encontraste aquí?">${escapeHtml(it.observacion||'')}</textarea>
     <div class="photo-zone">
@@ -2687,9 +2852,9 @@ function wireTpmNueva(){
   document.querySelectorAll('#tpm-items .check-item').forEach(row=>{
     const i = parseInt(row.dataset.i);
     const it = tpmForm.items[i];
-    const range = row.querySelector('.tpm-puntaje');
-    const num = row.querySelector('.tpm-puntaje-num');
-    range.addEventListener('input', ()=>{ it.puntaje = parseInt(range.value); num.textContent = it.puntaje+'%'; });
+    row.querySelectorAll('.tpm-scale-btn').forEach(b=>{
+      b.addEventListener('click', ()=>{ it.puntaje = parseInt(b.dataset.v); renderTpm(); });
+    });
     row.querySelector('.tpm-obs').addEventListener('input', e=> it.observacion = e.target.value);
     row.querySelector('.tpm-photo').addEventListener('change', e=>{
       handlePhotoFile(e.target.files[0], dataUrl=>{ it.foto = {data:dataUrl, nombre: tpmForm.maquinaNombre||'foto'}; renderTpm(); });
@@ -2701,20 +2866,40 @@ function wireTpmNueva(){
   });
   document.getElementById('tpm-cancelar').addEventListener('click', ()=>{ tpmForm=null; tpmSubView='lista'; renderTpm(); });
   document.getElementById('tpm-guardar').addEventListener('click', async function(){
-    if(!tpmForm.maquinaId){ toast('Selecciona la máquina certificada'); return; }
+    if(!tpmForm.maquinaId){ toast('Selecciona la máquina a validar'); return; }
     const btn = this;
     btn.disabled = true; btn.textContent = 'Guardando…';
     try{
-      tpmForm.score = tpmForm.items.length ? tpmForm.items.reduce((a,it)=>a+it.puntaje,0)/tpmForm.items.length : null;
+      const escala = tpmForm.escala || ((currentEmpresa&&currentEmpresa.escalaTpm)||10);
+      const totalPuntos = tpmForm.items.reduce((a,it)=>a+it.puntaje,0);
+      const umbral = (currentEmpresa && currentEmpresa.umbralTpm) || 70;
+      tpmForm.totalPuntos = totalPuntos;
+      tpmForm.umbral = umbral;
+      tpmForm.aprobado = totalPuntos >= umbral;
+      tpmForm.score = tpmForm.items.length ? (totalPuntos/(tpmForm.items.length*escala)) * 100 : null;
       await Store.saveTpmCertificacion(tpmForm);
-      toast('Certificación guardada');
+      toast('Validación guardada');
       tpmDetalleId = tpmForm.id; tpmForm=null; tpmSubView='detalle';
       renderTpm();
     }catch(err){
       toast('No se pudo guardar: '+(err.message||''));
-      btn.disabled=false; btn.textContent='Guardar certificación';
+      btn.disabled=false; btn.textContent='Guardar validación';
     }
   });
+}
+function narrativaTpm(cert, historial, idx){
+  if(idx<=0) return `Esta es la primera validación de paso registrada para ${cert.maquinaNombre||'esta máquina'}.`;
+  const previos = historial.slice(0, idx+1);
+  const aprobadas = previos.filter(h=>h.aprobado).length;
+  let texto = `Esta máquina tiene ${previos.length} validación(es) registradas, de las cuales ${aprobadas} fueron aprobadas. `;
+  const anterior = historial[idx-1];
+  if(anterior && anterior.totalPuntos!==null && anterior.totalPuntos!==undefined && cert.totalPuntos!==null && cert.totalPuntos!==undefined){
+    const delta = Math.round(cert.totalPuntos - anterior.totalPuntos);
+    if(delta>0) texto += `El puntaje subió ${delta} pts frente a la validación anterior.`;
+    else if(delta<0) texto += `El puntaje bajó ${Math.abs(delta)} pts frente a la validación anterior.`;
+    else texto += 'El puntaje se mantuvo igual frente a la validación anterior.';
+  }
+  return texto;
 }
 async function renderTpmDetalle(){
   const body = document.getElementById('tpm-body');
@@ -2726,28 +2911,31 @@ async function renderTpmDetalle(){
   const prev = idx>0?historial[idx-1]:null;
   body.innerHTML = `
     <button class="btn btn-ghost btn-sm" id="tpm-volver">← Volver</button>
-    <div class="card" style="margin-top:10px;">
-      ${gaugeSvg(cert.score)}
-      <div style="text-align:center;"><b>${escapeHtml(cert.maquinaNombre||'')}</b><div class="hint" style="margin:2px 0 0;">${escapeHtml(cert.areaNombre||'')} · ${fmtDate(cert.fecha)} · ${escapeHtml(cert.responsable||'')}</div></div>
-      ${prev?`<div class="hint" style="text-align:center;margin-top:6px;">Certificación anterior en esta máquina: ${Math.round(prev.score)}% (${fmtDate(prev.fecha)})</div>`:''}
+    <div class="card" style="margin-top:10px;text-align:center;">
+      <div style="font-size:44px;font-weight:800;color:${cert.aprobado?'var(--success)':'var(--danger)'};">${cert.totalPuntos!==null&&cert.totalPuntos!==undefined?Math.round(cert.totalPuntos):'–'}</div>
+      <div style="font-weight:700;color:${cert.aprobado?'var(--success)':'var(--danger)'};margin-bottom:4px;">${cert.aprobado?'✅ APROBADA':'❌ NO APROBADA'} (mínimo ${cert.umbral} pts)</div>
+      <div><b>${escapeHtml(cert.maquinaNombre||'')}</b><div class="hint" style="margin:2px 0 0;">${escapeHtml(cert.areaNombre||'')} · ${fmtDate(cert.fecha)} · ${escapeHtml(cert.responsable||'')}</div></div>
+      ${prev?`<div class="hint" style="text-align:center;margin-top:6px;">Validación anterior en esta máquina: ${prev.totalPuntos!==null&&prev.totalPuntos!==undefined?Math.round(prev.totalPuntos):Math.round(prev.score)} pts (${fmtDate(prev.fecha)})</div>`:''}
     </div>
     ${historial.length>1?`<div class="section-title"><span class="dot"></span>Tendencia en esta máquina</div><div class="card">${sparklineSvg(historial.map(h=>h.score), 'var(--accent)')}</div>`:''}
+    <div class="section-title"><span class="dot"></span>🧠 Resumen</div>
+    <div class="card"><div style="white-space:pre-line;">${escapeHtml(narrativaTpm(cert, historial, idx))}</div></div>
     <div class="section-title"><span class="dot"></span>Variables evaluadas</div>
     ${cert.items.map(it=>`
       <div class="check-item">
-        <div class="check-item-head"><b>${escapeHtml(it.nombre)}</b><span style="margin-left:auto;font-weight:700;color:${colorForScore(it.puntaje)}">${Math.round(it.puntaje)}%</span></div>
+        <div class="check-item-head"><b>${escapeHtml(it.nombre)}</b><span style="margin-left:auto;font-weight:700;color:${colorForScore((it.puntaje/cert.escala)*100)}">${it.puntaje}/${cert.escala}</span></div>
         ${it.observacion?`<div class="hint" style="margin:4px 0;">${escapeHtml(it.observacion)}</div>`:''}
         ${it.foto?`<div class="photo-preview"><img src="${it.foto.data}"></div>`:''}
       </div>
     `).join('')}
     ${cert.notas?`<div class="section-title"><span class="dot"></span>Notas de cierre</div><div class="card">${escapeHtml(cert.notas)}</div>`:''}
-    <button class="btn btn-danger-outline btn-block" id="tpm-borrar" style="margin-top:16px;">Eliminar certificación</button>
+    <button class="btn btn-danger-outline btn-block" id="tpm-borrar" style="margin-top:16px;">Eliminar validación</button>
   `;
   document.getElementById('tpm-volver').addEventListener('click', ()=>{ tpmSubView='lista'; renderTpm(); });
   document.getElementById('tpm-borrar').addEventListener('click', async ()=>{
-    if(!confirm('¿Eliminar esta certificación? Esta acción no se puede deshacer.')) return;
+    if(!confirm('¿Eliminar esta validación? Esta acción no se puede deshacer.')) return;
     await Store.deleteTpmCertificacion(cert.id);
-    toast('Certificación eliminada');
+    toast('Validación eliminada');
     tpmSubView='lista'; renderTpm();
   });
 }
@@ -2914,6 +3102,20 @@ async function renderTurnoDetalle(){
 }
 let turnoInformeDesde = null;
 let turnoInformeHasta = null;
+function narrativaTurno(filtradas, prom, porTurno){
+  if(!filtradas.length) return 'No hay entregas de turno registradas en este periodo.';
+  let texto = `Se registraron ${filtradas.length} entrega(s) de turno con un cumplimiento promedio de ${Math.round(prom)}%. `;
+  const turnos = Object.keys(porTurno);
+  if(turnos.length>1){
+    const proms = turnos.map(t=>({t, avg: porTurno[t].reduce((a,v)=>a+v,0)/porTurno[t].length}));
+    proms.sort((a,b)=>a.avg-b.avg);
+    const peor = proms[0], mejor = proms[proms.length-1];
+    texto += `El turno con menor cumplimiento es ${peor.t} (${Math.round(peor.avg)}%), frente a ${mejor.t} con ${Math.round(mejor.avg)}%. `;
+  }
+  const conNovedades = filtradas.filter(e=>e.novedades && e.novedades.trim()).length;
+  texto += conNovedades>0 ? `${conNovedades} entrega(s) reportaron novedades para el siguiente turno.` : 'Ninguna entrega reportó novedades pendientes en este periodo.';
+  return texto;
+}
 async function renderTurnoInforme(){
   const body = document.getElementById('turno-body');
   if(!turnoInformeHasta){ turnoInformeHasta = todayISO(); }
@@ -2934,6 +3136,8 @@ async function renderTurnoInforme(){
       ${gaugeSvg(prom)}
       <div class="hint" style="text-align:center;">${filtradas.length} entrega(s) de turno en el periodo</div>
     </div>
+    <div class="section-title"><span class="dot"></span>🧠 Resumen</div>
+    <div class="card"><div style="white-space:pre-line;">${escapeHtml(narrativaTurno(filtradas, prom, porTurno))}</div></div>
     <div class="section-title"><span class="dot"></span>Cumplimiento por turno</div>
     <div class="card">
       ${Object.keys(porTurno).length===0?`<div class="hint" style="margin-top:0;">Sin datos en este periodo.</div>`:
