@@ -97,7 +97,7 @@ header.top{
 
 /* FILTER BAR */
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
-select, input[type=text], input[type=date], textarea{
+select, input[type=text], input[type=date], input[type=password], input[type=number], input[type=email], textarea{
   background:var(--surface-2);border:1px solid var(--border);color:var(--text);
   padding:10px 12px;border-radius:8px;font-size:14px;font-family:inherit;width:100%;
 }
@@ -184,6 +184,17 @@ textarea{resize:vertical;min-height:64px;line-height:1.4;}
 .tabs-row{display:flex;gap:6px;margin-bottom:14px;}
 .tab-btn{flex:1;padding:9px 4px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:13px;font-weight:700;text-align:center;transition:.15s;}
 .tab-btn.active{background:var(--success-dim);border-color:var(--accent);color:var(--accent);}
+.accordion-item{margin-bottom:10px;border:1px solid var(--border-soft);border-radius:14px;overflow:hidden;}
+.accordion-header{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:14px 16px;background:var(--surface-2);border:none;color:var(--text);
+  font-size:14.5px;font-weight:700;text-align:left;cursor:pointer;
+}
+.acc-chevron{color:var(--text-dim);transition:.2s;flex-shrink:0;}
+.accordion-item.open .acc-chevron{transform:rotate(180deg);}
+.accordion-body{display:none;padding:0 0 4px;}
+.accordion-item.open .accordion-body{display:block;}
+.accordion-body .card.settings-card{border-radius:0;border:none;border-top:1px solid var(--border-soft);margin-bottom:0;}
 .matriz-table{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap;}
 .matriz-table th,.matriz-table td{padding:7px 10px;border-bottom:1px solid var(--border-soft);text-align:center;}
 .matriz-table th:first-child,.matriz-table td:first-child{text-align:left;white-space:normal;max-width:140px;}
@@ -530,18 +541,6 @@ nav.bottom{
     <button class="nav-btn" data-tab="view-portada">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
       Inicio
-    </button>
-    <button class="nav-btn" data-tab="view-tpm">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
-      Validación
-    </button>
-    <button class="nav-btn" data-tab="view-home">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.6"/><path d="M12 8v5l-2.5 6M12 13l3 2 3-1.5M9.5 11l-3.5 1.5"/></svg>
-      Gemba
-    </button>
-    <button class="nav-btn" data-tab="view-turno">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-      Turno
     </button>
     <button class="nav-btn" data-tab="view-informes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
@@ -2453,7 +2452,10 @@ async function renderAjustes(){
     </div>
 
     ${isAdmin?`
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="empresa">🏢 Datos de la empresa<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-empresa">
+      <div class="card settings-card">
       <h3>Datos de la empresa</h3>
       <p class="desc">El nombre aparece en el encabezado de la app y en tus exportes.</p>
       <div class="logo-pick">
@@ -2470,8 +2472,13 @@ async function renderAjustes(){
       </div>
       <button class="btn btn-accent" id="aj-save-empresa">Guardar empresa</button>
     </div>
+      </div>
+    </div>
 
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="usuarios">👥 Usuarios de mi empresa<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-usuarios">
+      <div class="card settings-card">
       <h3>Usuarios de mi empresa</h3>
       <p class="desc">Crea una cuenta para cada persona que hará recorridos, con una clave inicial que la persona deberá cambiar en su primer ingreso. Cupo: <b style="color:var(--text)">${misUsuarios.length} / ${cupoUsuarios}</b></p>
       ${misUsuarios.length?misUsuarios.map(u=>`
@@ -2490,8 +2497,13 @@ async function renderAjustes(){
       <button class="btn btn-accent btn-block" id="nu-create">+ Crear usuario</button>
       `}
     </div>
+      </div>
+    </div>
 
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="catalogo">📋 Cargar catálogo masivo<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-catalogo">
+      <div class="card settings-card">
       <h3>Cargar catálogo masivo</h3>
       <p class="desc">Un renglón por máquina, con este formato — separado por " | ":<br><b style="color:var(--text)">Proceso productivo | Área | Máquina | Zona</b><br>El proceso y la zona son opcionales. Puedes repetir el área/máquina en varias líneas para agregar varias zonas.</p>
       <textarea id="bulk-catalogo" placeholder="Extrusión | Producción | Extrusora 1 | Cabezal
@@ -2501,8 +2513,13 @@ Empaque | Producción | Selladora 2
       <div style="height:10px;"></div>
       <button class="btn btn-accent btn-block" id="bulk-catalogo-save">⇈ Cargar catálogo</button>
     </div>
+      </div>
+    </div>
 
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="variables-gemba">✅ Cargar variables de control masivamente<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-variables-gemba">
+      <div class="card settings-card">
       <h3>Cargar variables de control masivamente</h3>
       <p class="desc">Define de una vez la lista de puntos que se deben verificar en cada recorrido — se cargarán automáticamente en cada nuevo recorrido. Un renglón por variable, con este formato:<br><b style="color:var(--text)">Categoría | Variable | Valor esperado</b><br>El valor esperado es opcional (solo aplica a Centerline). Categorías válidas: Seguridad, Calidad, Centerline, 5S, LILA, TPM.</p>
       <textarea id="bulk-variables" placeholder="Seguridad | Extintor cargado y señalizado
@@ -2516,8 +2533,13 @@ TPM | Nivel de aceite dentro de rango"></textarea>
       <button class="btn btn-accent btn-block" id="bulk-variables-save">⇈ Cargar variables</button>
       <div id="bulk-variables-resumen" class="hint" style="margin-top:12px;">Variables activas — ${CATLABEL_KEYS.map(k=>`${CATLABEL[k]}: ${(templates[k]||[]).length}`).join(' · ')}</div>
     </div>
+      </div>
+    </div>
 
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="variables-tpm">🧰 Variables de validación de paso<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-variables-tpm">
+      <div class="card settings-card">
       <h3>🧰 Variables de validación de paso</h3>
       <p class="desc">Estas son las variables que se piden calificar en cada validación de paso.</p>
       <div class="field"><label>Escala de puntuación (número de opciones en la cinta)</label>
@@ -2544,8 +2566,13 @@ TPM | Nivel de aceite dentro de rango"></textarea>
       </div>
       <button class="btn btn-accent btn-block" id="tpmvar-add">+ Agregar variable de validación</button>
     </div>
+      </div>
+    </div>
 
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="variables-turno">🔄 Variables y turnos de entrega de turno<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-variables-turno">
+      <div class="card settings-card">
       <h3>🔄 Variables y turnos de entrega de turno</h3>
       <p class="desc">Estas variables se controlan por Cumple / No cumple en cada entrega de turno.</p>
       ${turnoVars.length?turnoVars.map(v=>`
@@ -2566,9 +2593,14 @@ TPM | Nivel de aceite dentro de rango"></textarea>
         <button class="btn btn-sm btn-accent" id="turno-nombre-add">+ Agregar turno</button>
       </div>
     </div>
+      </div>
+    </div>
     `:''}
 
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="password">🔑 Cambiar mi contraseña<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-password">
+      <div class="card settings-card">
       <h3>Cambiar mi contraseña</h3>
       <div class="row2">
         <div class="field"><label>Nueva contraseña</label><input type="password" id="aj-pass1" placeholder="Mínimo 4 caracteres"></div>
@@ -2576,17 +2608,28 @@ TPM | Nivel de aceite dentro de rango"></textarea>
       </div>
       <button class="btn btn-accent" id="aj-save-pass">Actualizar contraseña</button>
     </div>
+      </div>
+    </div>
 
     ${isAdmin?`
-    <div class="card settings-card">
+    <div class="accordion-item">
+      <button class="accordion-header" data-acc="backup">💾 Datos y respaldo<span class="acc-chevron">▾</span></button>
+      <div class="accordion-body" id="acc-backup">
+      <div class="card settings-card">
       <h3>Datos y respaldo</h3>
       <p class="desc">Toda la información se guarda en este dispositivo/navegador. Exporta un respaldo periódicamente para no perder tu historial, o para cargarlo luego a una hoja de cálculo o base de datos propia.</p>
       <button class="btn btn-block" id="aj-backup">⬇ Exportar respaldo completo (JSON)</button>
+    </div>
+      </div>
     </div>
     `:''}
 
     <div class="hint" style="text-align:center;margin-top:20px;">Herramienta Datos de Piso de Planta — v1.0<br>Desarrollado por MT Performance Solutions</div>
   `;
+
+  document.querySelectorAll('.accordion-header').forEach(h=>{
+    h.addEventListener('click', ()=> h.parentElement.classList.toggle('open'));
+  });
 
   if(isAdmin){
     document.getElementById('aj-logo').addEventListener('change', e=>{
